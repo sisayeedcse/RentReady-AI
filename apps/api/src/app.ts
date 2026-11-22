@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
+import { createDomainRoutes } from "./routes/domain.js";
+import { createVoiceRoutes } from "./routes/voice.js";
 
 export interface EnvBindings {
   SUPABASE_URL?: string;
@@ -28,11 +30,14 @@ export function createApiApp(): Hono<{ Bindings: EnvBindings }> {
     return c.json({
       status: "ok",
       service: "rentready-api",
-      version: "0.1.0",
+      version: "0.2.0",
       timezone: "Asia/Dhaka",
       timestamp: new Date().toISOString()
     });
   });
+
+  app.route("/api", createDomainRoutes());
+  app.route("/api/voice", createVoiceRoutes());
 
   app.notFound((c) => {
     if (c.req.path.startsWith("/api/")) {

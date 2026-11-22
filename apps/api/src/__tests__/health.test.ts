@@ -22,11 +22,11 @@ describe("RentReady API health & security headers", () => {
     expect(Number.isNaN(Date.parse(body.timestamp))).toBe(false);
   });
 
-  it("returns JSON 404 for unknown /api/* routes", async () => {
+  it("fails closed with 401 for unauthenticated requests to non-health /api/* routes", async () => {
     const app = createApiApp();
     const res = await app.request("/api/does-not-exist");
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("Not Found");
+    expect(body.error).toContain("Authorization");
   });
 });
