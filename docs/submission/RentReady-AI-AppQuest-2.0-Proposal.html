@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RentReady AI — AppQuest 2.0 Official 8-Page Proposal</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background: #e2e8f0;
+        color: #0f172a;
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.48;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .page {
+        width: 210mm;
+        height: 297mm;
+        margin: 10mm auto;
+        background: #ffffff;
+        padding: 16mm 18mm 14mm 18mm;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+        page-break-after: always;
+        break-after: page;
+      }
+      @media print {
+        body {
+          background: #ffffff;
+        }
+        .page {
+          margin: 0;
+          box-shadow: none;
+        }
+      }
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #059669;
+        padding-bottom: 6px;
+        margin-bottom: 14px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #047857;
+      }
+      .page-footer {
+        position: absolute;
+        bottom: 10mm;
+        left: 18mm;
+        right: 18mm;
+        display: flex;
+        justify-content: space-between;
+        font-size: 9.5px;
+        color: #64748b;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 6px;
+      }
+      h1 {
+        font-size: 28px;
+        line-height: 1.15;
+        margin: 0 0 8px 0;
+        color: #0f172a;
+      }
+      h2 {
+        font-size: 18px;
+        margin: 0 0 10px 0;
+        color: #064e3b;
+      }
+      h3 {
+        font-size: 13px;
+        margin: 12px 0 6px 0;
+        color: #0f172a;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      p {
+        margin: 0 0 9px 0;
+        font-size: 11.5px;
+        color: #334155;
+      }
+      ul, ol {
+        margin: 0 0 10px 0;
+        padding-left: 18px;
+        font-size: 11.2px;
+        color: #334155;
+      }
+      li {
+        margin-bottom: 4px;
+      }
+      .hero-banner {
+        background: linear-gradient(135deg, #064e3b 0%, #059669 100%);
+        color: #ffffff;
+        border-radius: 12px;
+        padding: 22px 24px;
+        margin-bottom: 18px;
+      }
+      .hero-banner h1 {
+        color: #ffffff;
+        font-size: 32px;
+      }
+      .hero-banner p {
+        color: #d1fae5;
+        font-size: 13px;
+        margin-bottom: 0;
+      }
+      .pill {
+        display: inline-block;
+        background: #ecfdf5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-size: 10px;
+        font-weight: 700;
+        margin-right: 6px;
+        margin-bottom: 6px;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .card {
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 10px;
+        padding: 11px 13px;
+      }
+      .card-accent {
+        border: 1.5px solid #10b981;
+        background: #ecfdf5;
+        border-radius: 10px;
+        padding: 11px 13px;
+      }
+      .card-warn {
+        border: 1.5px solid #f59e0b;
+        background: #fffbeb;
+        border-radius: 10px;
+        padding: 11px 13px;
+      }
+      .kpi-num {
+        font-size: 20px;
+        font-weight: 800;
+        color: #047857;
+        margin: 0;
+      }
+      .kpi-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: #475569;
+        margin: 2px 0 0 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10.5px;
+        margin: 8px 0 12px 0;
+      }
+      th {
+        background: #0f172a;
+        color: #ffffff;
+        text-align: left;
+        padding: 6px 8px;
+        font-weight: 600;
+      }
+      td {
+        border-bottom: 1px solid #e2e8f0;
+        padding: 6px 8px;
+        vertical-align: top;
+      }
+      tr:nth-child(even) td {
+        background: #f8fafc;
+      }
+      code {
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 10px;
+        background: #f1f5f9;
+        padding: 1px 4px;
+        border-radius: 4px;
+        color: #0f172a;
+      }
+      .flow-box {
+        background: #0f172a;
+        color: #e2e8f0;
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 10px;
+        line-height: 1.55;
+        margin: 8px 0 12px 0;
+        white-space: pre-wrap;
+      }
+      .placeholder-box {
+        border: 2px dashed #94a3b8;
+        border-radius: 10px;
+        padding: 18px;
+        text-align: center;
+        color: #475569;
+        font-size: 11px;
+        background: #f8fafc;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ==================== PAGE 1 ==================== -->
+    <section class="page">
+      <div class="page-header">
+        <span>AppQuest 2.0 • Proposal PDF (Page 1 of 8)</span>
+        <span>Inter-University Track</span>
+      </div>
+
+      <div class="hero-banner">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #a7f3d0; margin-bottom: 6px;">
+          AppQuest 2.0 — The AppLink Innovation Hackathon (Bangladesh, 2026)
+        </div>
+        <h1>RentReady AI</h1>
+        <p>
+          Bangla-First, AI-Assisted Rental Property Operations SaaS with an Immutable Financial
+          Ledger &amp; Confirmed Banglalink AppLink SMS Integration
+        </p>
+      </div>
+
+      <div>
+        <span class="pill">Theme 4: Frontier Technologies &amp; Resilient Systems</span>
+        <span class="pill">Category 11: Agentic AI &amp; Autonomous Systems (SDG 8, 9)</span>
+        <span class="pill">Track: Inter-University</span>
+      </div>
+
+      <h3>Brief Project Description</h3>
+      <p>
+        <strong>RentReady AI</strong> enables small residential landlords in Bangladesh (managing
+        2–20 units) to replace paper notebooks (<em>khata</em>) and unstructured bKash screenshots
+        with a fast, mobile-first Bangla/English operations platform. Landlords can log full or
+        partial rent payments, record property expenses, track maintenance, and query dues using
+        natural conversational Bangla/Banglish voice commands—while a deterministic PostgreSQL
+        financial ledger guarantees paisa-level accounting accuracy and <strong>Banglalink
+        AppLink SMS</strong> delivers confirmed payment receipts and overdue rent reminders.
+      </p>
+
+      <h3>Team Details — Team: The Nerds (4 Members)</h3>
+      <div class="card" style="margin-bottom: 12px;">
+        <p style="margin-bottom: 4px;"><strong>University:</strong> [FILL IN: Your University Name, Bangladesh]</p>
+        <p style="margin-bottom: 0;"><strong>Eligibility:</strong> All 4 members are currently enrolled undergraduate students at the same university in Bangladesh (aged 18+, valid student IDs available).</p>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Member Name</th>
+            <th>Role in RentReady AI</th>
+            <th>Email / Student ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td><strong>[Member 1 — Team Lead]</strong></td>
+            <td>Architecture, Oracle Cloud Static-IP Relay, AppLink Integration</td>
+            <td>[email@university.edu.bd]</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><strong>[Member 2]</strong></td>
+            <td>PostgreSQL Financial Ledger, Atomic RPCs, Supabase RLS</td>
+            <td>[email@university.edu.bd]</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><strong>[Member 3]</strong></td>
+            <td>React + TypeScript Frontend, Bangla/English UX, Confirmation UI</td>
+            <td>[email@university.edu.bd]</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><strong>[Member 4]</strong></td>
+            <td>Bangla Voice ASR + OpenRouter Pipeline, QA Automation, Business Plan</td>
+            <td>[email@university.edu.bd]</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Official Submission Links</h3>
+      <div class="card-accent">
+        <p style="margin-bottom: 4px;"><strong>GitHub Repository:</strong> <code>[https://github.com/your-org/rentready-ai]</code></p>
+        <p style="margin-bottom: 4px;"><strong>Live Deployed URL:</strong> <code>[https://rentready-ai.your-subdomain.workers.dev]</code></p>
+        <p style="margin-bottom: 0;"><strong>2-Minute English Demo Video:</strong> <code>[https://youtu.be/your-demo-link]</code></p>
+      </div>
+
+      <div class="page-footer">
+        <span>RentReady AI — Team: The Nerds</span>
+        <span>Page 1 of 8</span>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 2 ==================== -->
+    <section class="page">
+      <div class="page-header">
+        <span>AppQuest 2.0 • Executive Summary</span>
+        <span>Page 2 of 8</span>
+      </div>
+
+      <h2>Executive Summary</h2>
+      <p>
+        Across urban and semi-urban Bangladesh, millions of residential flats are managed by
+        individual landlords owning 2 to 20 units. Despite rapid smartphone and mobile financial
+        service (bKash/Nagad) adoption, daily rent operations remain trapped in paper
+        <em>khatas</em>, phone calls, and screenshot galleries. When a tenant pays partial rent,
+        combines utility charges, or disputes a prior month's balance, manual tracking breaks down.
+      </p>
+      <p>
+        <strong>RentReady AI</strong> bridges this gap by combining conversational Bangla voice
+        accessibility with bank-grade ledger integrity and native Banglalink telco messaging:
+      </p>
+
+      <div class="grid-3">
+        <div class="card-accent">
+          <p class="kpi-num">9-Step</p>
+          <p class="kpi-label">Human-in-the-Loop Bangla Voice Safety Pipeline</p>
+        </div>
+        <div class="card-accent">
+          <p class="kpi-num">100%</p>
+          <p class="kpi-label">Integer Paisa Ledger &amp; Supabase RLS Isolation</p>
+        </div>
+        <div class="card-accent">
+          <p class="kpi-num">S1000</p>
+          <p class="kpi-label">Live Banglalink AppLink SMS Receipts &amp; Reminders</p>
+        </div>
+      </div>
+
+      <h3>Three Core Engineering Pillars</h3>
+      <ol>
+        <li>
+          <strong>Bangla &amp; Banglish Voice-to-Confirmed-Ledger:</strong> A landlord speaks
+          naturally—<em>"Flat 3B er Rahim bhai 8000 taka bKash korse"</em>. Groq Whisper Large V3
+          Turbo transcribes the audio in-memory into editable Bangla text; a pinned OpenRouter
+          model extracts strict Zod-validated JSON; deterministic backend code resolves the exact
+          unit and tenant (never guessing on ambiguous matches); and an explicit
+          <strong>Confirmation Card</strong> gates every financial write and SMS.
+        </li>
+        <li>
+          <strong>Deterministic, Immutable Financial Accounting:</strong> Every taka is stored in
+          PostgreSQL <code>BIGINT *_paisa</code> columns (zero floating-point math). Balances are
+          never stored as fragile "Paid/Unpaid" booleans; they are computed dynamically from
+          <code>rent_obligations</code> minus <code>SUM(payment_allocations)</code>. Confirmed
+          payments are never deleted—corrections create auditable negative reversal entries.
+        </li>
+        <li>
+          <strong>Production-Ready Banglalink AppLink SMS:</strong> Confirmed payment receipts and
+          overdue reminders are sent via <code>https://api.applink.com.bd/sms/send</code> through an
+          HMAC-SHA256 authenticated <strong>Oracle Cloud Always Free Static-IPv4 Relay</strong>,
+          permanently solving AppLink's <code>E1303</code> IP-whitelisting requirement while keeping
+          hackathon hosting at <strong>$0/month</strong>.
+        </li>
+      </ol>
+
+      <h3>Commercial Credibility Beyond the Hackathon</h3>
+      <p>
+        RentReady AI is engineered as a clean modular monolith verified by <strong>33 automated
+        Vitest tests</strong> and GitHub Actions CI. Following the AppQuest 2.0 Grand Finale, Team
+        The Nerds will execute a 60-day pilot with 5–10 Dhaka landlords, add AppLink OTP phone
+        verification during the December 6–16 Enhancement Sprint, and scale on a transparent
+        freemium SaaS model (350 BDT/month Landlord Pro tier) with ~74% projected gross margin.
+      </p>
+
+      <div class="page-footer">
+        <span>RentReady AI — Team: The Nerds</span>
+        <span>Page 2 of 8</span>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 3 ==================== -->
+    <section class="page">
+      <div class="page-header">
+        <span>AppQuest 2.0 • Problem Statement</span>
+        <span>Page 3 of 8</span>
+      </div>
+
+      <h2>Problem Statement</h2>
+      <p>
+        Small residential landlords in Bangladesh (2–20 units) operate micro-businesses without
+        accountants or ERP teams. Interviews and market observation reveal four structural pain
+        points that cause monthly revenue leakage and landlord-tenant friction:
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="margin-top: 0;">1. Partial-Payment &amp; Balance Drift</h3>
+          <p style="margin-bottom: 0;">
+            Tenants frequently split a ৳12,000 rent into ৳8,000 via bKash on the 5th and ৳4,000 cash
+            on the 15th. Paper <em>khatas</em> and simple "Paid/Unpaid" toggles fail immediately on
+            multi-installment payments and multi-month arrears.
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top: 0;">2. Form Fatigue for Non-Tech Landlords</h3>
+          <p style="margin-bottom: 0;">
+            Many residential building owners are aged 45–70 and find multi-screen English ERP forms
+            slow and intimidating, causing them to abandon software within 2 weeks and return to
+            notebooks.
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top: 0;">3. Missing Receipts &amp; Awkward Chasing</h3>
+          <p style="margin-bottom: 0;">
+            Landlords rarely issue written receipts for partial cash or bKash transfers, leading to
+            disputes at move-out. Chasing late rent by personal phone call is socially uncomfortable.
+          </p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top: 0;">4. Zero Expense vs. Income Visibility</h3>
+          <p style="margin-bottom: 0;">
+            Plumbing repairs, water pump maintenance, and caretaker salaries are paid out of pocket
+            without linking to property income, leaving landlords blind to true net operating yield.
+          </p>
+        </div>
+      </div>
+
+      <h3>Honest Bangladesh Competitor Gap Analysis (Verified Nov 2026)</h3>
+      <p>
+        We do not claim RentReady AI is the first rental app in Bangladesh. Several local products
+        exist, yet a clear operational gap remains for fast, Bangla voice-assisted ledger entry:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Target Segment</th>
+            <th>Observed Capabilities</th>
+            <th>Remaining Gap</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Baario</strong> (baario.com)</td>
+            <td>General BD landlords &amp; tenants</td>
+            <td>Free mobile rent tracking, QR onboarding, basic reminders</td>
+            <td>Form-based; no Bangla voice-to-confirmed-ledger workflow observed</td>
+          </tr>
+          <tr>
+            <td><strong>NibashPlus</strong> (nibash.plus)</td>
+            <td>BD &amp; NRB owners</td>
+            <td>Remote oversight, utility tracking, tenant KYC</td>
+            <td>No conversational Bangla voice operations or immutable reversal ledger</td>
+          </tr>
+          <tr>
+            <td><strong>KRTaker</strong> (krtaker.com)</td>
+            <td>Larger portfolios / compliance</td>
+            <td>Tax/TDS, PRCA legal tools, bKash/Nagad, 24/7 AI chat</td>
+            <td>Heavy enterprise/legal scope; not built for quick Bangla voice-to-ledger entry</td>
+          </tr>
+          <tr>
+            <td><strong>RentReady AI</strong></td>
+            <td><strong>Small BD landlords (2–20 units)</strong></td>
+            <td><strong>Bangla voice-to-confirmed-ledger + integer paisa accounting + live AppLink SMS</strong></td>
+            <td><strong>Directly targets speed of entry, partial-payment accuracy &amp; verified SMS receipts</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="page-footer">
+        <span>RentReady AI — Team: The Nerds</span>
+        <span>Page 3 of 8</span>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 4 ==================== -->
+    <section class="page">
+      <div class="page-header">
+        <span>AppQuest 2.0 • Proposed Solution</span>
+        <span>Page 4 of 8</span>
+      </div>
+
+      <h2>Proposed Solution: Safe Bangla Voice + Verified Ledger</h2>
+      <p>
+        RentReady AI is a mobile-first, bilingual (<strong>বাংলা / English</strong>) rental
+        operations SaaS where touch UI and conversational Bangla voice work seamlessly together over
+        a single deterministic PostgreSQL ledger.
+      </p>
+
+      <h3>The 9-Step Human-in-the-Loop Bangla Voice Pipeline</h3>
+      <div class="flow-box">1. Mic Capture (Browser MediaRecorder) OR Direct Bangla/English Text Fallback
+2. Replaceable Bangla ASR (Groq Whisper Large V3 Turbo — audio discarded in memory)
+3. Editable Transcript UI (Landlord fixes any misheard name or Taka amount)
+4. Pinned OpenRouter JSON Extraction (temperature=0, strict system contract)
+5. Zod Schema Validation (Rejects negative amounts, missing fields, malformed JSON)
+6. Deterministic DB Entity Resolution (Exact unit + tenant match; NEVER guesses)
+   └─ If 2 tenants named "Rahim" exist → returns `needs_clarification` radio picker
+7. Explicit Confirmation Card (Shows resolved Tenant, Unit, BDT, Remaining Balance / SMS)
+8. Deterministic Backend Execution (Idempotent PostgreSQL RPC or Confirmed AppLink SMS)
+9. Append-Only Audit Log (Links voice_action_id → executed_record_id → audit_logs)</div>
+
+      <h3>8 Structured Voice Action Contracts</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="margin-top: 0;">Write &amp; SMS Actions (Confirmation Mandatory)</h3>
+          <ul style="margin-bottom: 0;">
+            <li><code>record_rent_payment</code> — Full/partial payment (cash/bKash/Nagad/bank)</li>
+            <li><code>record_expense</code> — Property repair, utility, or staff expense</li>
+            <li><code>create_maintenance_request</code> — Log unit issue with priority</li>
+            <li><code>prepare_rent_reminder</code> — Draft &amp; confirm AppLink SMS reminder</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="margin-top: 0;">Read-Only Queries (Instant DB-Computed)</h3>
+          <ul style="margin-bottom: 0;">
+            <li><code>get_outstanding_rent</code> — Exact due list per unit/tenant/month</li>
+            <li><code>get_monthly_collection</code> — Expected vs. collected vs. remaining</li>
+            <li><code>get_payment_history</code> — Chronological tenant ledger</li>
+            <li><code>get_property_summary</code> — Occupancy, net income, open repairs</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Complete Core Operations (Touch UI + Voice Parity)</h3>
+      <ul>
+        <li><strong>Properties &amp; Units:</strong> Fast setup (auto-creates default building), unit rent configuration, vacant/occupied status tracking.</li>
+        <li><strong>Tenants &amp; Tenancies:</strong> Normalized Bangladesh phone numbers (<code>+8801XXXXXXXXX</code>), Banglalink prefix indicator, and database-enforced single active tenancy per unit.</li>
+        <li><strong>Immutable Financial Ledger:</strong> 1-click monthly bill generation, partial/full payment allocation, immutable reversals with reason, and instant AppLink SMS receipts.</li>
+        <li><strong>Executive Dashboard:</strong> 100% database-computed KPIs (Expected, Collected, Outstanding, Expenses, Net Operating Result, Occupancy %) with zero client-side financial guesswork.</li>
+      </ul>
+
+      <div class="page-footer">
+        <span>RentReady AI — Team: The Nerds</span>
+        <span>Page 4 of 8</span>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 5 ==================== -->
+    <section class="page">
+      <div class="page-header">
+        <span>AppQuest 2.0 • Technical Implementation</span>
+        <span>Page 5 of 8</span>
+      </div>
+
+      <h2>Technical Implementation &amp; Security Architecture</h2>
+      <p>
+        RentReady AI is engineered as a strictly typed TypeScript <strong>modular monolith</strong>
+        (<code>pnpm</code> workspace) designed for low latency, zero-cost hackathon execution, and
+        effortless transition to commercial production without a rewrite.
+      </p>
+
+      <div class="flow-box">[Mobile/Desktop SPA: React 19 + Vite + Tailwind v4 (Bangla/English)]
+        │  HTTPS + Supabase User JWT (Same Origin via Cloudflare Workers Static Assets)
+        ▼
+[Cloudflare Worker: Hono REST API (apps/api)]
+   ├──► [Supabase PostgreSQL + Auth + 100% RLS (19 Tables, BIGINT *_paisa, Atomic RPCs)]
+   ├──► [Groq Whisper Large V3 Turbo (In-Memory Bangla ASR) + OpenRouter Pinned LLM]
+   └──► HMAC-SHA256 + 60s Replay Guard ──► [Oracle Cloud Always Free Static-IP Relay]
+                                                    │ (Whitelisted Static IPv4)
+                                                    ▼
+                                     [Banglalink AppLink SMS API]</div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="margin-top: 0;">Financial Ledger Invariants</h3>
+          <ul style="margin-bottom: 0;">
+            <li><strong>Zero Floats:</strong> All money stored in <code>BIGINT *_paisa</code> (<code>1 BDT = 100 paisa</code>) with <code>BigInt</code> string parsing.</li>
+            <li><strong>Derived Balances:</strong> <code>v_obligation_balances</code> computes outstanding dues from <code>rent_obligations</code> minus <code>SUM(payment_allocations)</code>.</li>
+            <li><strong>Idempotent Atomic RPCs:</strong> <code>record_payment_atomic</code> &amp; <code>reverse_payment_atomic</code> enforce <code>UNIQUE(landlord_id, idempotency_key)</code>.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="margin-top: 0;">Security &amp; Multi-Tenant Isolation</h3>
+          <ul style="margin-bottom: 0;">
+            <li><strong>100% RLS Coverage:</strong> Every table (19/19) enforces <code>landlord_id = auth.uid()</code>; views use <code>security_invoker = true</code>.</li>
+            <li><strong>Zero <code>service_role</code> in User Routes:</strong> Worker forwards caller's Supabase JWT directly to PostgreSQL.</li>
+            <li><strong>Append-Only Ledger &amp; Audit:</strong> Zero <code>UPDATE</code>/<code>DELETE</code> RLS policies on <code>payments</code>, <code>payment_allocations</code>, and <code>audit_logs</code>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Automated Quality Verification (GitHub Actions CI)</h3>
+      <p>
+        Every commit runs strict TypeScript checks, Vite production builds, and <strong>33 automated
+        Vitest tests</strong> covering integer money math, SQL migration RLS/no-float invariants,
+        ambiguous voice entity rejection, HMAC signature verification, and HTTP 200 AppLink error
+        parsing (<code>E1303</code> / <code>E1313</code>).
+      </p>
+
+      <div class="card-warn">
+        <h3 style="margin-top: 0;">AI Tools &amp; Open-Source Disclosure (Booklet p. 11, 15, 18)</h3>
+        <p style="margin-bottom: 0;">
+          In compliance with AppQuest 2.0 rules, Team <strong>The Nerds</strong> discloses using
+          <strong>Google Antigravity</strong>, <strong>OpenCode</strong>, <strong>OpenRouter</strong>
+          free open-weight models (<code>particle-ai/particle-1:free</code>,
+          <code>google/gemma-4-26b-a4b-it:free</code>), <strong>Groq Whisper Large V3 Turbo</strong>,
+          and open-source frameworks (React, Hono, Zod, Tailwind CSS, Vitest, Supabase JS, guided by
+          <code>hSenidMobileCPaaS/Applink-as-a-Skill</code>). All build testing uses test data only.
+        </p>
+      </div>
+
+      <div class="page-footer">
+        <span>RentReady AI — Team: The Nerds</span>
+        <span>Page 5 of 8</span>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 6 ==================== -->
+    <section class="page">
+      <div class="page-header">
+        <span>AppQuest 2.0 • Banglalink AppLink Integration</span>
+        <span>Page 6 of 8</span>
+      </div>
+
+      <h2>Banglalink AppLink Integration: APIs &amp; User Flows</h2>
+      <p>
+        AppLink is embedded directly into RentReady AI's core financial loop—turning every recorded
+        rent payment and overdue balance into an instant, auditable telco communication channel.
+      </p>
+
+      <h3>1. APIs Integrated &amp; Production Roadmap</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>AppLink API</th>
+            <th>Endpoint</th>
+            <th>RentReady AI Use Case</th>
+            <th>Stage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>SMS MT API</strong></td>
+            <td><code>POST https://api.applink.com.bd/sms/send</code></td>
+            <td>Confirmed Bangla/English payment receipts (with remaining balance) &amp; polite overdue rent reminders</td>
+            <td><strong>Live in MVP (Release A)</strong></td>
+          </tr>
+          <tr>
+            <td><strong>OTP API</strong></td>
+            <td><code>POST /otp/request</code> &amp; <code>/otp/verify</code></td>
+            <td>Banglalink landlord phone verification &amp; high-value reversal confirmation</td>
+            <td><strong>Enhancement Sprint (6–16 Dec)</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>2. Solving the Cloudflare-to-AppLink Fixed-IP Blocker (<code>E1303</code>)</h3>
+      <p>
+        Official AppLink authentication requires every API <code>POST</code> to originate from an
+        explicitly whitelisted static IPv4 address (otherwise returning <code>E1303</code>). Because
+        Cloudflare Workers operate over Anycast with rotating outbound IPs, direct Worker-to-AppLink
+        calls fail in production. We engineered a clean, zero-cost solution:
+      </p>
+      <ul>
+        <li><code>apps/api</code> signs each confirmed SMS payload with <strong>HMAC-SHA256</strong> + a 60-second timestamp window using Web Crypto.</li>
+        <li><code>services/applink-relay</code> (Dockerized Node 22 / Hono service on an <strong>Oracle Cloud Always Free VM</strong>) verifies the signature, enforces a hardcoded allowlist strictly to <code>https://api.applink.com.bd/sms/send</code> (preventing SSRF), injects server-side <code>applicationId</code> + <code>password</code>, and dispatches from our single whitelisted static IPv4.</li>
+      </ul>
+
+      <h3>3. Telco-Grade Error Handling &amp; User Flow (Per <code>Applink-as-a-Skill</code>)</h3>
+      <div class="flow-box">Landlord records ৳8,000 payment (Unit 3B) OR clicks "SMS Reminder" on Overdue List
+  └─► Confirmation Modal opens (shows recipient +88019..., editable Bangla/English SMS)
+        └─► Landlord clicks "Confirm &amp; Execute" (sends confirmed:true + idempotency_key)
+              └─► Worker checks duplicate key ─► Signs &amp; calls OCI Static-IP Relay
+                    └─► AppLink POST /sms/send ─► Parses JSON body (NEVER trusts HTTP 200 alone!)
+                          ├─ statusCode === "S1000" ─► status="sent", logs requestId
+                          └─ E1303 / E1313 / other ─► status="failed", logs sanitized code</div>
+
+      <p>
+        <strong>Operator Transparency:</strong> Because AppLink natively serves Banglalink
+        subscribers (<code>+88019</code> / <code>+88014</code>), RentReady AI automatically detects
+        recipient prefixes, displays a clear compatibility indicator, and offers a 1-click
+        <em>"Copy Receipt Text"</em> fallback for non-Banglalink numbers until our multi-operator BD
+        SMS aggregator launches in Release C.
+      </p>
+
+      <div class="page-footer">
+        <span>RentReady AI — Team: The Nerds</span>
+        <span>Page 6 of 8</span>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 7 ==================== -->
+    <section class="page">
+      <div class="page-header">
+        <span>AppQuest 2.0 • Revenue Model &amp; 6-Month Business Plan</span>
+        <span>Page 7 of 8</span>
+      </div>
+
+      <h2>Revenue Model, 6-Month Business Plan &amp; Go-To-Market</h2>
+
+      <h3>1. Freemium SaaS Revenue Model (BDT)</h3>
+      <p>
+        Small Bangladeshi landlords are price-sensitive and reluctant to pay before trusting a
+        financial tool. RentReady AI uses a low-friction freemium funnel that monetizes landlords
+        managing 5+ units—where partial-payment tracking and monthly reporting save hours every month:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Plan</th>
+            <th>Target Landlord</th>
+            <th>Monthly Price (BDT)</th>
+            <th>Key Features</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Free (Starter)</strong></td>
+            <td>1–4 units</td>
+            <td><strong>৳0 / month</strong></td>
+            <td>Full ledger, dashboard, Banglalink AppLink SMS receipts, 20 Bangla voice commands/mo</td>
+          </tr>
+          <tr>
+            <td><strong>Landlord Pro</strong></td>
+            <td>5–20 units</td>
+            <td><strong>৳350 / month</strong> (~$2.80)</td>
+            <td>Up to 25 units, 200 voice commands/mo, 50 multi-op SMS, PDF/CSV monthly reports, deposits</td>
+          </tr>
+          <tr>
+            <td><strong>Multi-Building / NRB</strong></td>
+            <td>21+ units</td>
+            <td><strong>৳1,200 / month</strong> (~$9.60)</td>
+            <td>Unlimited units, caretaker sub-accounts + audit log, annual income/tax summary</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>2. Honest Unit Economics (At ~100 Landlords / ~1,000 Units)</h3>
+      <div class="grid-3">
+        <div class="card">
+          <p class="kpi-num">৳61–98</p>
+          <p class="kpi-label">Est. Monthly Infra + AI + SMS Cost / Landlord</p>
+        </div>
+        <div class="card">
+          <p class="kpi-num">~74%</p>
+          <p class="kpi-label">Est. Gross Margin per Pro Subscriber (৳350/mo)</p>
+        </div>
+        <div class="card">
+          <p class="kpi-num">30 Paid</p>
+          <p class="kpi-label">Pro Landlords to Cover Full 100-User Infra</p>
+        </div>
+      </div>
+
+      <h3>3. 6-Month Execution, Promotion &amp; Marketing Plan</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Timeline</th>
+            <th>Product &amp; Operations Milestones</th>
+            <th>Promotion &amp; Distribution Channels</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Months 1–2</strong><br/>(Dec 2026 – Jan 2027)</td>
+            <td>Complete AppQuest Enhancement Sprint (live AppLink approval + OTP by 16 Dec). Run 60-day free pilot with <strong>5–10 Dhaka landlords</strong>; measure Month-2 retention &amp; Bangla ASR accuracy.</td>
+            <td>Direct onboarding through university/family homeowner networks in Dhanmondi, Mirpur, and Uttara; collect video testimonials.</td>
+          </tr>
+          <tr>
+            <td><strong>Months 3–4</strong><br/>(Feb – Mar 2027)</td>
+            <td>Upgrade to Supabase Pro (daily automated backups); integrate BTRC-compliant multi-operator SMS gateway (GP/Robi/Airtel); ship Caretaker RBAC &amp; Deposit UI.</td>
+            <td>Launch short 30-second Bangla Facebook Reels demonstrating voice-to-SMS receipt flow; target Dhaka/Chattogram homeowner communities.</td>
+          </tr>
+          <tr>
+            <td><strong>Months 5–6</strong><br/>(Apr – May 2027)</td>
+            <td>Enable bKash/Nagad recurring billing for Landlord Pro; launch monthly PDF tax/income summaries; target 100 active landlords &amp; first 30 paying subscribers.</td>
+            <td>Partner with residential <em>Flat Malik Samity</em> (owners' associations) and launch a 1-month-free landlord referral program.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="page-footer">
+        <span>RentReady AI — Team: The Nerds</span>
+        <span>Page 7 of 8</span>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 8 ==================== -->
+    <section class="page">
+      <div class="page-header">
+        <span>AppQuest 2.0 • Blank Page Challenge</span>
+        <span>Page 8 of 8</span>
+      </div>
+
+      <h2>Blank Page Challenge: Engineered Proof, Not Just Slides</h2>
+      <p>
+        Most hackathon prototypes break the moment a judge tests partial payments, ambiguous voice
+        input, or real telco APIs. Here is verifiable engineering evidence that <strong>RentReady
+        AI</strong> is built to go live on AppLink:
+      </p>
+
+      <div class="grid-3">
+        <div class="card-accent">
+          <p class="kpi-num">33 / 33</p>
+          <p class="kpi-label">Automated Vitest Security, Ledger &amp; Relay Tests Passing</p>
+        </div>
+        <div class="card-accent">
+          <p class="kpi-num">19 / 19</p>
+          <p class="kpi-label">PostgreSQL Tables Protected by Strict Supabase RLS</p>
+        </div>
+        <div class="card-accent">
+          <p class="kpi-num">$0 / mo</p>
+          <p class="kpi-label">Hackathon Running Cost (CF + Supabase + OCI Free Relay)</p>
+        </div>
+      </div>
+
+      <h3>Live Banglalink AppLink SMS Verification Proof</h3>
+      <div class="grid-2">
+        <div class="placeholder-box">
+          <strong>[INSERT SCREENSHOT 1]</strong><br /><br />
+          RentReady AI <strong>AppLink SMS &amp; Audit</strong> tab showing live<br />
+          <code>statusCode: "S1000"</code> + <code>requestId</code> + Confirmation Card
+        </div>
+        <div class="placeholder-box">
+          <strong>[INSERT SCREENSHOT 2]</strong><br /><br />
+          Real Banglalink Test Handset receiving the live<br />
+          Bangla RentReady AI Payment Receipt SMS
+        </div>
+      </div>
+
+      <h3>Verified Safety &amp; Financial Test Coverage (<code>pnpm test</code>)</h3>
+      <div class="flow-box">✓ packages/shared   (14 tests) — Integer paisa math (zero floats), BD phone normalization,
+                                 19/19 RLS table guard, security_invoker views, append-only ledger
+✓ services/relay    ( 6 tests) — HMAC-SHA256 + 60s replay guard, S1000 check, HTTP 200 E1303/E1313
+                                 failure parsing, verified zero password leakage in responses
+✓ apps/api          (11 tests) — Fail-closed 401 JWT auth, ambiguous "Rahim" -> needs_clarification,
+                                 Zod negative-amount rejection, Web Crypto HMAC, Bangla SMS builders
+✓ apps/web          ( 2 tests) — 100% Bangla (bn) &amp; English (en) i18n key parity</div>
+
+      <div class="grid-2" style="margin-top: 10px;">
+        <div class="card">
+          <h3 style="margin-top: 0;">Why Team The Nerds Will Ship Live by 16 Dec</h3>
+          <p style="margin-bottom: 0;">
+            Our modular monolith, SQL migrations, Dockerized Oracle Free static-IP relay, and CI
+            pipeline are already complete and passing. If shortlisted on Dec 5, we will dedicate the
+            entire Dec 6–16 Enhancement Sprint to jury feedback, AppLink OTP, and live production
+            launch.
+          </p>
+        </div>
+        <div class="card-accent">
+          <h3 style="margin-top: 0;">Inspect Live (Jury Quick Access)</h3>
+          <p style="margin-bottom: 4px;"><strong>GitHub:</strong> <code>[github.com/your-org/rentready-ai]</code></p>
+          <p style="margin-bottom: 4px;"><strong>Live URL:</strong> <code>[rentready-ai.workers.dev]</code></p>
+          <p style="margin-bottom: 0;"><strong>2-Min Video:</strong> <code>[youtu.be/your-demo-link]</code></p>
+        </div>
+      </div>
+
+      <div class="page-footer">
+        <span>RentReady AI — Team: The Nerds • Inter-University Track</span>
+        <span>Page 8 of 8</span>
+      </div>
+    </section>
+  </body>
+</html>
