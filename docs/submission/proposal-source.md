@@ -14,7 +14,7 @@
 - **University:** `[FILL IN: Your University Name, Bangladesh]`
 - **Declared Theme & Category:** Theme 4 — Frontier Technologies & Resilient Systems / Category 11: Agentic AI & Autonomous Systems (SDG 8: Decent Work & Economic Growth, SDG 9: Industry, Innovation & Infrastructure)
 - **Team Roster:**
-  1. `[FILL IN: Member 1 Name]` — Team Lead / Architecture, Oracle Cloud Relay & AppLink Integration (`[email]`)
+  1. `[FILL IN: Member 1 Name]` — Team Lead / Architecture, DigitalOcean Static-IP Relay & AppLink Integration (`[email]`)
   2. `[FILL IN: Member 2 Name]` — Backend, PostgreSQL Ledger & Supabase RLS (`[email]`)
   3. `[FILL IN: Member 3 Name]` — Frontend React/TypeScript & Bangla UX (`[email]`)
   4. `[FILL IN: Member 4 Name]` — Bangla Voice AI Pipeline, QA & Product Strategy (`[email]`)
@@ -28,7 +28,7 @@ Small residential landlords in Bangladesh managing 2 to 20 flats still run their
 **RentReady AI** solves this with three tightly integrated pillars:
 1. **Safe Bangla/Banglish Voice-to-Ledger AI Copilot:** A landlord speaks naturally in Bangla or mixed Banglish (*"Flat 3B er Rahim bhai 8000 taka bKash korse"*). Audio is transcribed in-memory via Groq Whisper Large V3 Turbo, shown as an editable transcript, extracted into strict Zod-validated JSON via a pinned OpenRouter model, resolved deterministically against the landlord's database, and **gated behind an explicit human Confirmation Card** before any write occurs.
 2. **Immutable, Integer-Precision Financial Ledger:** Built on Supabase PostgreSQL with `BIGINT *_paisa` minor units (`1 BDT = 100 paisa`), atomic FIFO payment allocations, immutable counter-row reversals (zero hard deletes), DB-computed outstanding balances, and 100% Row Level Security (`landlord_id = auth.uid()`).
-3. **Production-Grade Banglalink AppLink SMS Integration:** Confirmed payment receipts and overdue rent reminders are dispatched via `POST https://api.applink.com.bd/sms/send` through an HMAC-SHA256 authenticated Oracle Cloud Always Free static-IPv4 relay (cleanly solving the Cloudflare Anycast `E1303` IP-whitelisting blocker), with full `statusCode: S1000` and `requestId` audit logging.
+3. **Production-Grade Banglalink AppLink SMS Integration:** Confirmed payment receipts and overdue rent reminders are dispatched via `POST https://api.applink.com.bd/sms/send` through an HMAC-SHA256 authenticated DigitalOcean Basic Static-IPv4 relay ($4/mo, cleanly solving the Cloudflare Anycast `E1303` IP-whitelisting blocker), with full `statusCode: S1000` and `requestId` audit logging.
 
 Built as a zero-cost modular monolith (`pnpm` monorepo with 33/33 automated tests passing), RentReady AI is engineered not as a throwaway hackathon prototype, but to graduate directly into a 5–10 landlord pilot in Dhaka after the December Grand Finale.
 
@@ -65,7 +65,7 @@ RentReady AI pairs a **mobile-first Bangla/English operations app** with a **hum
 - **Frontend (`apps/web`):** React 19, TypeScript (strict), Vite 6, Tailwind CSS v4, Lucide icons, full Bangla (`bn`) / English (`en`) i18n with 100% key parity.
 - **Edge API (`apps/api`):** Cloudflare Workers + Hono + **Workers Static Assets** (serving SPA + `/api/*` under one origin with security headers).
 - **Database (`supabase/migrations/`):** 19 normalized PostgreSQL tables, `BIGINT *_paisa` integer money (zero floats), `security_invoker = true` views (`v_obligation_balances`, `v_dashboard_summary`), atomic `SECURITY INVOKER` RPCs (`record_payment_atomic`, `reverse_payment_atomic`, `generate_monthly_obligations`), and **100% RLS coverage** with append-only `payments` and `audit_logs`.
-- **Fixed-IP Telco Relay (`services/applink-relay`):** Containerized Node 22 / Hono microservice deployed on an **Oracle Cloud Always Free VM** with a whitelisted static IPv4, authenticated via constant-time HMAC-SHA256 + 60-second replay window.
+- **Fixed-IP Telco Relay (`services/applink-relay`):** Containerized Node 22 / Hono microservice deployed on a **DigitalOcean Basic Droplet ($4/mo)** with a whitelisted static IPv4, authenticated via constant-time HMAC-SHA256 + 60-second replay window.
 - **AI & Bangla ASR:** Replaceable `SpeechToTextProvider` (`Groq Whisper Large V3 Turbo`, in-memory audio only — zero audio files stored) + pinned OpenRouter free model (`google/gemma-4-26b-a4b-it:free`) with strict Zod schema validation.
 - **Automated Verification:** **33 / 33 Vitest unit & safety tests passing** across `packages/shared`, `services/applink-relay`, `apps/api`, and `apps/web`, plus GitHub Actions CI.
 
@@ -80,7 +80,7 @@ Team **The Nerds** explicitly discloses that **Google Antigravity** (research, a
 - **Release B (6–16 Dec Enhancement Sprint):** **AppLink OTP API** (`POST /otp/request`, `POST /otp/verify`) for Banglalink landlord phone verification + production live API approval by 16 Dec 2026.
 
 ### Engineering Around Real Telco Constraints
-1. **Solving the Cloudflare Anycast `E1303` Blocker:** AppLink enforces strict source-IP whitelisting (returning `E1303` from unprovisioned IPs), while Cloudflare Workers use rotating Anycast egress IPs. RentReady AI routes all AppLink calls through our HMAC-authenticated **Oracle Cloud Always Free Static-IP Relay** (`services/applink-relay`), keeping the stack **$0/mo** while guaranteeing a single whitelisted IPv4.
+1. **Solving the Cloudflare Anycast `E1303` Blocker:** AppLink enforces strict source-IP whitelisting (returning `E1303` from unprovisioned IPs), while Cloudflare Workers use rotating Anycast egress IPs. RentReady AI routes all AppLink calls through our HMAC-authenticated **DigitalOcean Basic Static-IPv4 Relay** (`services/applink-relay`, $4/mo), keeping total hackathon infrastructure at **$4/mo (~500 BDT)** while guaranteeing a single whitelisted IPv4.
 2. **Strict `statusCode === "S1000"` Contract:** Following `hSenidMobileCPaaS/Applink-as-a-Skill`, we never trust HTTP `200 OK` alone; we parse the JSON body, treat `E1303` / `E1313` as explicit failures, never log `password`, enforce `idempotency_key` deduplication, and record sanitized `statusCode` + `requestId` in `notification_logs`.
 3. **Human Confirmation & Operator Honesty:** No SMS is ever sent without explicit landlord confirmation (`confirmed: true`). Non-Banglalink numbers trigger a clear advisory badge with a 1-click "Copy Receipt Text" fallback (with multi-operator BD SMS gateway planned for commercial pilot).
 
@@ -106,5 +106,5 @@ Team **The Nerds** explicitly discloses that **Google Antigravity** (research, a
 ## Page 8 — Blank Page Challenge (Verification & Proof Edge)
 - **Live AppLink Proof:** `[INSERT: Side-by-side screenshot of RentReady AI notification_logs showing statusCode: S1000 + requestId AND real Banglalink handset SMS receipt]`
 - **Automated Engineering Verification:** **33 / 33 Vitest tests passing** (Exact integer `paisa` math, 19/19 RLS table coverage, zero float columns, `security_invoker` views, append-only `payments`/`audit_logs`, ambiguous "Rahim" rejection, HTTP 200 `E1303`/`E1313` failure parsing, HMAC replay protection).
-- **Zero-Cost Hackathon Architecture:** $0/mo total running cost during AppQuest 2.0 (Cloudflare Workers Free + Supabase Free + Oracle Cloud Always Free Static-IP Relay + Groq Whisper Free + OpenRouter Free + AppLink Developer Free).
+- **Ultra-Low-Cost Hackathon Architecture:** $4/mo (~500 BDT) total running cost during AppQuest 2.0 (Cloudflare Workers Free + Supabase Free + DigitalOcean $4/mo Static-IP Relay + Groq Whisper Free + OpenRouter Free + AppLink Developer Free).
 - **Direct Jury Links:** GitHub Repository | Live Deployed URL | 2-Minute English Demo Video (`[INSERT QR CODES]`).

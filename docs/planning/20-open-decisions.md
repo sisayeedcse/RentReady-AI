@@ -5,7 +5,7 @@
 | # | Decision Topic | Locked User Decision | Status |
 | :---: | :--- | :--- | :---: |
 | **D1** | **AppQuest 2.0 Delegate Booklet** | Official 21-page booklet supplied & extracted into `02-appquest-requirements.md` and `18-demo-and-submission.md`. Submission deadline: **30 Nov 2026, 11:59 PM BST**. | **LOCKED** |
-| **D2** | **Fixed-IP AppLink Relay Host** | **Oracle Cloud Always Free VM** ($0/mo, static IPv4). *(Fallback note: if OCI card verification rejects signup, pivot immediately to a $4/mo DigitalOcean Droplet so we don't lose days before 30 Nov.)* | **LOCKED** |
+| **D2** | **Fixed-IP AppLink Relay Host** | **DigitalOcean Basic Droplet ($4/mo, ~500 BDT/mo, static IPv4)** — pivoted from Oracle Cloud Free after OCI signup verification blocked account creation. Local dev runs `pnpm dev:relay` on `127.0.0.1:8788`. | **LOCKED (Updated)** |
 | **D3** | **OpenRouter Budget** | **Stay \$0 Free (50 RPD cap).** Enforce strict 50 RPD discipline: use Antigravity for planning/reviews/docs and micro-scoped OpenCode prompts for coding. | **LOCKED** |
 | **D4** | **Banglalink AppLink Account** | **Account created & approved.** Verify that **Email 2 (App Approval)** for RentReady AI + static IP whitelisting are completed once OCI IPv4 is created. | **LOCKED** |
 | **D5** | **Primary Bangla ASR Provider** | **Groq Whisper Large V3 Turbo** (Free: 2,000 RPD, 8 audio hrs/day) behind replaceable `SpeechToTextProvider` interface, with **Deepgram Nova-3 `bn`** ($200 free credits) as backup. | **LOCKED** |

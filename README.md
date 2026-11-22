@@ -12,7 +12,7 @@
 
 - **Deterministic Financial Ledger (PostgreSQL):** Integer minor units (`paisa`), full & partial payment allocations, immutable reversals, DB-computed outstanding balances, and append-only audit trails.
 - **Safe Bangla/Banglish Voice Copilot:** Browser audio capture → Groq Whisper Large V3 Turbo ASR → editable Bangla transcript (with direct text fallback) → pinned OpenRouter structured JSON extraction → Zod validation → deterministic entity resolution → **explicit human confirmation** before any write or SMS.
-- **Live Banglalink AppLink SMS Integration:** Confirmed payment receipts and rent reminders sent via `https://api.applink.com.bd/sms/send` through an HMAC-authenticated Oracle Cloud Always Free static-IPv4 relay, with full `statusCode` (`S1000`) and `requestId` audit logging.
+- **Live Banglalink AppLink SMS Integration:** Confirmed payment receipts and rent reminders sent via `https://api.applink.com.bd/sms/send` through an HMAC-authenticated DigitalOcean Static-IPv4 relay ($4/mo VPS), with full `statusCode` (`S1000`) and `requestId` audit logging.
 
 ---
 

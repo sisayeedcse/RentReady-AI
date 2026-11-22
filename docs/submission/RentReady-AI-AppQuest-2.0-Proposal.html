@@ -276,7 +276,7 @@
           <tr>
             <td>1</td>
             <td><strong>[Member 1 — Team Lead]</strong></td>
-            <td>Architecture, Oracle Cloud Static-IP Relay, AppLink Integration</td>
+            <td>Architecture, DigitalOcean Static-IP Relay, AppLink Integration</td>
             <td>[email@university.edu.bd]</td>
           </tr>
           <tr>
@@ -368,9 +368,9 @@
         <li>
           <strong>Production-Ready Banglalink AppLink SMS:</strong> Confirmed payment receipts and
           overdue reminders are sent via <code>https://api.applink.com.bd/sms/send</code> through an
-          HMAC-SHA256 authenticated <strong>Oracle Cloud Always Free Static-IPv4 Relay</strong>,
+          HMAC-SHA256 authenticated <strong>DigitalOcean Basic Static-IPv4 Relay ($4/mo)</strong>,
           permanently solving AppLink's <code>E1303</code> IP-whitelisting requirement while keeping
-          hackathon hosting at <strong>$0/month</strong>.
+          total hackathon infrastructure at just <strong>$4/month (~500 BDT)</strong>.
         </li>
       </ol>
 
@@ -566,7 +566,7 @@
 [Cloudflare Worker: Hono REST API (apps/api)]
    ├──► [Supabase PostgreSQL + Auth + 100% RLS (19 Tables, BIGINT *_paisa, Atomic RPCs)]
    ├──► [Groq Whisper Large V3 Turbo (In-Memory Bangla ASR) + OpenRouter Pinned LLM]
-   └──► HMAC-SHA256 + 60s Replay Guard ──► [Oracle Cloud Always Free Static-IP Relay]
+   └──► HMAC-SHA256 + 60s Replay Guard ──► [DigitalOcean $4/mo Static-IPv4 Relay]
                                                     │ (Whitelisted Static IPv4)
                                                     ▼
                                      [Banglalink AppLink SMS API]</div>
@@ -664,7 +664,7 @@
       </p>
       <ul>
         <li><code>apps/api</code> signs each confirmed SMS payload with <strong>HMAC-SHA256</strong> + a 60-second timestamp window using Web Crypto.</li>
-        <li><code>services/applink-relay</code> (Dockerized Node 22 / Hono service on an <strong>Oracle Cloud Always Free VM</strong>) verifies the signature, enforces a hardcoded allowlist strictly to <code>https://api.applink.com.bd/sms/send</code> (preventing SSRF), injects server-side <code>applicationId</code> + <code>password</code>, and dispatches from our single whitelisted static IPv4.</li>
+        <li><code>services/applink-relay</code> (Dockerized Node 22 / Hono service on a <strong>DigitalOcean Basic Static-IPv4 Droplet — $4/mo</strong>) verifies the signature, enforces a hardcoded allowlist strictly to <code>https://api.applink.com.bd/sms/send</code> (preventing SSRF), injects server-side <code>applicationId</code> + <code>password</code>, and dispatches from our single whitelisted static IPv4.</li>
       </ul>
 
       <h3>3. Telco-Grade Error Handling &amp; User Flow (Per <code>Applink-as-a-Skill</code>)</h3>
@@ -810,8 +810,8 @@
           <p class="kpi-label">PostgreSQL Tables Protected by Strict Supabase RLS</p>
         </div>
         <div class="card-accent">
-          <p class="kpi-num">$0 / mo</p>
-          <p class="kpi-label">Hackathon Running Cost (CF + Supabase + OCI Free Relay)</p>
+          <p class="kpi-num">$4 / mo</p>
+          <p class="kpi-label">Hackathon Cost (CF + Supabase Free + $4 DO Relay)</p>
         </div>
       </div>
 
@@ -842,7 +842,7 @@
         <div class="card">
           <h3 style="margin-top: 0;">Why Team The Nerds Will Ship Live by 16 Dec</h3>
           <p style="margin-bottom: 0;">
-            Our modular monolith, SQL migrations, Dockerized Oracle Free static-IP relay, and CI
+            Our modular monolith, SQL migrations, Dockerized DigitalOcean static-IP relay, and CI
             pipeline are already complete and passing. If shortlisted on Dec 5, we will dedicate the
             entire Dec 6–16 Enhancement Sprint to jury feedback, AppLink OTP, and live production
             launch.

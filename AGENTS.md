@@ -16,7 +16,7 @@ Do **not** silently change the architecture or introduce microservices, Kubernet
 apps/web/              # React + TypeScript + Vite + Tailwind + shadcn/ui SPA
 apps/api/              # Cloudflare Worker (Hono) + Workers Static Assets
 packages/shared/       # Shared Zod schemas, action contracts, paisa <-> BDT helpers
-services/applink-relay/# Minimal HMAC-authenticated fixed-IPv4 relay (Oracle Cloud Free VM)
+services/applink-relay/# Minimal HMAC-authenticated fixed-IPv4 relay (DigitalOcean $4/mo VPS)
 supabase/migrations/   # Sequential SQL migrations (schema, views, RPCs, RLS)
 docs/planning/         # Authoritative planning & architecture specifications
 ```
