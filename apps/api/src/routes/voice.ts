@@ -17,9 +17,9 @@ import {
   buildRentReminderSms,
   dispatchApplinkSmsViaRelay
 } from "../modules/notifications/applink.js";
-import { GroqWhisperProvider } from "../modules/voice/asr.js";
+import { GeminiAudioAsrProvider } from "../modules/voice/asr.js";
 import {
-  DEFAULT_INTENT_MODEL,
+  DEFAULT_GEMINI_MODEL,
   extractVoiceIntent,
   IntentProviderRateLimitError
 } from "../modules/voice/extractor.js";
@@ -36,11 +36,11 @@ export function createVoiceRoutes(): Hono<{ Bindings: EnvBindings; Variables: Au
   const r = new Hono<{ Bindings: EnvBindings; Variables: AuthVariables }>();
   r.use("*", requireAuth);
 
-  // Step 1-2: Audio -> Replaceable ASR (Groq Whisper Turbo) -> Text-only session
+  // Step 1-2: Audio -> Replaceable ASR (Google Gemini Native Audio) -> Text-only session
   r.post("/transcribe", async (c) => {
-    const groqKey = c.env.GROQ_API_KEY;
-    if (!groqKey) {
-      return c.json({ error: "GROQ_API_KEY is not configured on server" }, 503);
+    const geminiKey = c.env.GEMINI_API_KEY;
+    if (!geminiKey) {
+      return c.json({ error: "GEMINI_API_KEY is not configured on server" }, 503);
     }
 
     const formData = await c.req.formData().catch(() => null);
@@ -53,14 +53,25 @@ export function createVoiceRoutes(): Hono<{ Bindings: EnvBindings; Variables: Au
       return c.json({ error: "Audio file must be between 1 byte and 5 MB" }, 400);
     }
 
-    const provider = new GroqWhisperProvider(groqKey);
+    const provider = new GeminiAudioAsrProvider(
+      geminiKey,
+      c.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL
+    );
     const audioBuffer = await file.arrayBuffer();
-    const result = await provider.transcribe({
-      audio: audioBuffer,
-      filename: file.name || "voice.webm",
-      mimeType: file.type || "audio/webm",
-      languageHint: "bn"
-    });
+    let result: Awaited<ReturnType<GeminiAudioAsrProvider["transcribe"]>>;
+    try {
+      result = await provider.transcribe({
+        audio: audioBuffer,
+        filename: file.name || "voice.webm",
+        mimeType: file.type || "audio/webm",
+        languageHint: "bn"
+      });
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : "Audio transcription failed" },
+        502
+      );
+    }
 
     const { data: session, error } = await c.var.supabase
       .from("voice_sessions")
@@ -95,10 +106,9 @@ export function createVoiceRoutes(): Hono<{ Bindings: EnvBindings; Variables: Au
       return c.json({ error: "Invalid transcript payload", details: body.error.flatten() }, 400);
     }
 
-    const openRouterKey = c.env.OPENROUTER_API_KEY;
-    const groqKey = c.env.GROQ_API_KEY;
-    if (!openRouterKey && !groqKey) {
-      return c.json({ error: "Neither OPENROUTER_API_KEY nor GROQ_API_KEY is configured on server" }, 503);
+    const geminiKey = c.env.GEMINI_API_KEY;
+    if (!geminiKey) {
+      return c.json({ error: "GEMINI_API_KEY is not configured on server" }, 503);
     }
 
     const supabase = c.var.supabase;
@@ -126,9 +136,8 @@ export function createVoiceRoutes(): Hono<{ Bindings: EnvBindings; Variables: Au
     try {
       extracted = await extractVoiceIntent({
         transcript: body.data.transcript,
-        apiKey: openRouterKey,
-        groqApiKey: groqKey,
-        model: c.env.OPENROUTER_INTENT_MODEL || DEFAULT_INTENT_MODEL
+        apiKey: geminiKey,
+        model: c.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL
       });
     } catch (err) {
       if (err instanceof IntentProviderRateLimitError) {

@@ -1,16 +1,12 @@
 import { VoiceActionPayloadSchema, type VoiceActionPayload } from "@rentready/shared";
 
-export const DEFAULT_INTENT_MODEL = "google/gemma-4-26b-a4b-it:free";
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 
-export const PINNED_OPENROUTER_FALLBACK_MODELS = [
-  "google/gemma-4-26b-a4b-it:free",
-  "nvidia/nemotron-3.5-lightning:free",
-  "google/gemma-4-31b-it:free",
-  "recursive/flint-v1.0:free",
-  "particle-ai/particle-1:free"
+export const PINNED_GEMINI_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite"
 ] as const;
-
-export const GROQ_FALLBACK_LLM_MODEL = "llama-3.3-70b-versatile";
 
 const SYSTEM_PROMPT = `You are the structured intent extractor for RentReady AI, a Bangladeshi residential rental management SaaS.
 You receive a Bangla, English, or mixed Banglish landlord utterance.
@@ -53,62 +49,6 @@ function extractJsonObject(raw: string): unknown {
   return JSON.parse(candidate.slice(start, end + 1));
 }
 
-async function callChatCompletion(params: {
-  url: string;
-  apiKey: string;
-  model: string;
-  transcript: string;
-  extraHeaders?: Record<string, string>;
-  fetchImpl: typeof fetch;
-}): Promise<{ ok: true; content: string } | { ok: false; status: number; error: string }> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
-
-  try {
-    const doFetch = params.fetchImpl;
-    const res = await doFetch(params.url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${params.apiKey}`,
-        "Content-Type": "application/json",
-        ...params.extraHeaders
-      },
-      body: JSON.stringify({
-        model: params.model,
-        temperature: 0,
-        max_tokens: 400,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: params.transcript }
-        ]
-      }),
-      signal: controller.signal
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      return { ok: false, status: res.status, error: errText.slice(0, 200) };
-    }
-
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      return { ok: false, status: 502, error: "Empty completion content" };
-    }
-    return { ok: true, content };
-  } catch (err) {
-    return {
-      ok: false,
-      status: 503,
-      error: err instanceof Error ? err.message : "Network/timeout error"
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 export class IntentProviderRateLimitError extends Error {
   constructor(message: string) {
     super(message);
@@ -118,96 +58,94 @@ export class IntentProviderRateLimitError extends Error {
 
 export async function extractVoiceIntent(params: {
   transcript: string;
-  apiKey?: string;
-  groqApiKey?: string;
+  apiKey: string;
   model?: string;
   fetchImpl?: typeof fetch;
 }): Promise<{ payload: VoiceActionPayload; modelUsed: string }> {
   const {
     transcript,
     apiKey,
-    groqApiKey,
-    model = DEFAULT_INTENT_MODEL,
+    model = DEFAULT_GEMINI_MODEL,
     fetchImpl = (...args: Parameters<typeof fetch>) => globalThis.fetch(...args)
   } = params;
 
-  const openRouterModels = [
-    model,
-    ...PINNED_OPENROUTER_FALLBACK_MODELS.filter((m) => m !== model)
-  ];
-
+  const candidateModels = [model, ...PINNED_GEMINI_MODELS.filter((m) => m !== model)];
   let lastStatus = 503;
-  let lastError = "No AI provider configured";
+  let lastError = "Gemini intent extraction failed";
 
-  // 1. Try pinned OpenRouter :free model chain (automatically fails over on 429/5xx)
-  if (apiKey) {
-    for (const candidateModel of openRouterModels) {
-      const attempt = await callChatCompletion({
-        url: "https://openrouter.ai/api/v1/chat/completions",
-        apiKey,
-        model: candidateModel,
-        transcript,
-        extraHeaders: {
-          "HTTP-Referer": "https://rentready.app",
-          "X-Title": "RentReady AI"
-        },
-        fetchImpl
+  for (const candidateModel of candidateModels) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const res = await fetchImpl(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: SYSTEM_PROMPT }]
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: transcript }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 400,
+            responseMimeType: "application/json"
+          }
+        }),
+        signal: controller.signal
       });
 
-      if (attempt.ok) {
-        return parseAndValidateContent(attempt.content, `openrouter:${candidateModel}`);
-      }
-
-      lastStatus = attempt.status;
-      lastError = `${candidateModel} (HTTP ${attempt.status}): ${attempt.error}`;
-
-      // Only fail over on rate-limit, unavailable, or upstream server errors
-      if (![429, 500, 502, 503, 504, 404].includes(attempt.status)) {
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        lastStatus = res.status;
+        lastError = `Gemini ${candidateModel} (HTTP ${res.status}): ${errText.slice(0, 200)}`;
+        if ([404, 429, 500, 502, 503, 504].includes(res.status)) {
+          continue;
+        }
         break;
       }
+
+      const data = (await res.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!content) {
+        lastStatus = 502;
+        lastError = `Gemini ${candidateModel} returned empty completion`;
+        continue;
+      }
+
+      const parsedJson = extractJsonObject(content);
+      const validated = VoiceActionPayloadSchema.safeParse(parsedJson);
+      if (!validated.success) {
+        return {
+          payload: {
+            intent: "unknown",
+            reason: `Validation failed: ${validated.error.issues[0]?.message ?? "invalid structure"}`
+          },
+          modelUsed: `gemini:${candidateModel}`
+        };
+      }
+
+      return { payload: validated.data, modelUsed: `gemini:${candidateModel}` };
+    } catch (err) {
+      lastStatus = 503;
+      lastError = err instanceof Error ? err.message : "Network error contacting Gemini";
+    } finally {
+      clearTimeout(timeout);
     }
-  }
-
-  // 2. Free high-availability fallback: Groq Llama 3.3 70B Versatile (reuses GROQ_API_KEY)
-  if (groqApiKey) {
-    const groqAttempt = await callChatCompletion({
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      apiKey: groqApiKey,
-      model: GROQ_FALLBACK_LLM_MODEL,
-      transcript,
-      fetchImpl
-    });
-
-    if (groqAttempt.ok) {
-      return parseAndValidateContent(groqAttempt.content, `groq:${GROQ_FALLBACK_LLM_MODEL}`);
-    }
-
-    lastStatus = groqAttempt.status;
-    lastError = `groq:${GROQ_FALLBACK_LLM_MODEL} (HTTP ${groqAttempt.status}): ${groqAttempt.error}`;
   }
 
   if (lastStatus === 429) {
     throw new IntentProviderRateLimitError(
-      `All free AI models are temporarily rate-limited upstream. Please retry in a few seconds. (${lastError})`
+      `Gemini API is temporarily rate-limited. Please retry in a few seconds. (${lastError})`
     );
   }
-  throw new Error(`AI intent extraction failed: ${lastError}`);
-}
-
-function parseAndValidateContent(
-  content: string,
-  modelUsed: string
-): { payload: VoiceActionPayload; modelUsed: string } {
-  const parsedJson = extractJsonObject(content);
-  const validated = VoiceActionPayloadSchema.safeParse(parsedJson);
-  if (!validated.success) {
-    return {
-      payload: {
-        intent: "unknown",
-        reason: `Validation failed: ${validated.error.issues[0]?.message ?? "invalid structure"}`
-      },
-      modelUsed
-    };
-  }
-  return { payload: validated.data, modelUsed };
+  throw new Error(lastError);
 }

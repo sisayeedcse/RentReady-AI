@@ -190,7 +190,7 @@ export function VoiceCopilotView({ accessToken, locale }: { accessToken: string;
               {t(locale, "voicePromptTitle")}
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Groq Whisper Turbo ASR → Editable Transcript → Pinned OpenRouter Zod Extraction →
+              Google Gemini Native Bangla ASR → Editable Transcript → Gemini Structured JSON + Zod →
               Deterministic Confirmation Gate
             </p>
           </div>

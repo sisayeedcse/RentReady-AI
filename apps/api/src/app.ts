@@ -6,9 +6,8 @@ import { createVoiceRoutes } from "./routes/voice.js";
 export interface EnvBindings {
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
-  OPENROUTER_API_KEY?: string;
-  OPENROUTER_INTENT_MODEL?: string;
-  GROQ_API_KEY?: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
   APPLINK_RELAY_URL?: string;
   RELAY_SHARED_SECRET?: string;
   ASSETS?: Fetcher;

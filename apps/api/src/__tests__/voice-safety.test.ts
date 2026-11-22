@@ -86,17 +86,20 @@ describe("Deterministic Entity Resolution (AI Safety Gate)", () => {
   });
 });
 
-describe("OpenRouter Structured Intent Extractor", () => {
-  it("parses valid JSON fenced response into typed record_rent_payment", async () => {
+describe("Google Gemini Structured Intent Extractor", () => {
+  it("parses valid JSON response into typed record_rent_payment", async () => {
     const mockFetch = vi.fn(
       async () =>
         new Response(
           JSON.stringify({
-            choices: [
+            candidates: [
               {
-                message: {
-                  content:
-                    '```json\n{"intent":"record_rent_payment","amount_bdt":8000,"tenant_name_query":"Rahim","unit_code_query":"3B","payment_method":"bkash"}\n```'
+                content: {
+                  parts: [
+                    {
+                      text: '{"intent":"record_rent_payment","amount_bdt":8000,"tenant_name_query":"Rahim","unit_code_query":"3B","payment_method":"bkash"}'
+                    }
+                  ]
                 }
               }
             ]
@@ -105,13 +108,14 @@ describe("OpenRouter Structured Intent Extractor", () => {
         )
     ) as unknown as typeof fetch;
 
-    const { payload } = await extractVoiceIntent({
+    const { payload, modelUsed } = await extractVoiceIntent({
       transcript: "Flat 3B er Rahim bhai 8000 taka bKash korse",
-      apiKey: "test-key",
+      apiKey: "test-gemini-key",
       fetchImpl: mockFetch
     });
 
     expect(payload.intent).toBe("record_rent_payment");
+    expect(modelUsed).toBe("gemini:gemini-3.5-flash-lite");
     if (payload.intent === "record_rent_payment") {
       expect(payload.amount_bdt).toBe(8000);
       expect(payload.payment_method).toBe("bkash");
@@ -123,14 +127,18 @@ describe("OpenRouter Structured Intent Extractor", () => {
       async () =>
         new Response(
           JSON.stringify({
-            choices: [
+            candidates: [
               {
-                message: {
-                  content: JSON.stringify({
-                    intent: "record_rent_payment",
-                    amount_bdt: -500,
-                    unit_code_query: "3B"
-                  })
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        intent: "record_rent_payment",
+                        amount_bdt: -500,
+                        unit_code_query: "3B"
+                      })
+                    }
+                  ]
                 }
               }
             ]
@@ -141,14 +149,14 @@ describe("OpenRouter Structured Intent Extractor", () => {
 
     const { payload } = await extractVoiceIntent({
       transcript: "invalid",
-      apiKey: "test-key",
+      apiKey: "test-gemini-key",
       fetchImpl: mockFetch
     });
 
     expect(payload.intent).toBe("unknown");
   });
 
-  it("automatically fails over to next pinned model when primary model returns HTTP 429", async () => {
+  it("automatically fails over to next pinned Gemini model when primary returns HTTP 429", async () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValueOnce(
@@ -159,12 +167,16 @@ describe("OpenRouter Structured Intent Extractor", () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            choices: [
+            candidates: [
               {
-                message: {
-                  content: JSON.stringify({
-                    intent: "get_monthly_collection"
-                  })
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        intent: "get_monthly_collection"
+                      })
+                    }
+                  ]
                 }
               }
             ]
@@ -175,12 +187,12 @@ describe("OpenRouter Structured Intent Extractor", () => {
 
     const { payload, modelUsed } = await extractVoiceIntent({
       transcript: "Ei mashe koto bhara adai hoise?",
-      apiKey: "test-openrouter-key",
+      apiKey: "test-gemini-key",
       fetchImpl: mockFetch
     });
 
     expect(payload.intent).toBe("get_monthly_collection");
-    expect(modelUsed).toBe("openrouter:nvidia/nemotron-3.5-lightning:free");
+    expect(modelUsed).toBe("gemini:gemini-2.5-flash");
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

@@ -32,9 +32,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```env
    SUPABASE_URL=https://xxxxx.supabase.co
    SUPABASE_ANON_KEY=eyJ...
-   OPENROUTER_API_KEY=sk-or-v1-...
-   OPENROUTER_INTENT_MODEL=google/gemma-4-26b-a4b-it:free
-   GROQ_API_KEY=gsk_...
+   GEMINI_API_KEY=AIzaSy...
+   GEMINI_MODEL=gemini-3.5-flash-lite
    APPLINK_RELAY_URL=http://127.0.0.1:8788
    RELAY_SHARED_SECRET=<your-64-char-hex-secret>
    ```
@@ -99,8 +98,7 @@ cd apps/api
 npx wrangler login
 npx wrangler secret put SUPABASE_URL
 npx wrangler secret put SUPABASE_ANON_KEY
-npx wrangler secret put GROQ_API_KEY
-npx wrangler secret put OPENROUTER_API_KEY
+npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put APPLINK_RELAY_URL        # http://<YOUR_DROPLET_IPV4>:8788
 npx wrangler secret put RELAY_SHARED_SECRET
 npx wrangler deploy
