@@ -65,7 +65,8 @@ async function callChatCompletion(params: {
   const timeout = setTimeout(() => controller.abort(), 12_000);
 
   try {
-    const res = await params.fetchImpl(params.url, {
+    const doFetch = params.fetchImpl;
+    const res = await doFetch(params.url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${params.apiKey}`,
@@ -127,7 +128,7 @@ export async function extractVoiceIntent(params: {
     apiKey,
     groqApiKey,
     model = DEFAULT_INTENT_MODEL,
-    fetchImpl = fetch
+    fetchImpl = (...args: Parameters<typeof fetch>) => globalThis.fetch(...args)
   } = params;
 
   const openRouterModels = [

@@ -31,7 +31,7 @@ export class GroqWhisperProvider implements SpeechToTextProvider {
 
   constructor(
     private readonly apiKey: string,
-    private readonly fetchImpl: typeof fetch = fetch
+    private readonly fetchImpl: typeof fetch = (...args) => globalThis.fetch(...args)
   ) {}
 
   async transcribe(input: SpeechToTextInput): Promise<SpeechToTextResult> {
@@ -43,7 +43,8 @@ export class GroqWhisperProvider implements SpeechToTextProvider {
     form.append("response_format", "verbose_json");
     form.append("prompt", input.promptHint ?? DEFAULT_BANGLA_RENTAL_PROMPT);
 
-    const res = await this.fetchImpl("https://api.groq.com/openai/v1/audio/transcriptions", {
+    const doFetch = this.fetchImpl;
+    const res = await doFetch("https://api.groq.com/openai/v1/audio/transcriptions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.apiKey}`

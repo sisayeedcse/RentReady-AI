@@ -47,7 +47,13 @@ export async function dispatchApplinkSmsViaRelay(params: {
   message: string;
   fetchImpl?: typeof fetch;
 }): Promise<ApplinkRelayResult> {
-  const { relayUrl, sharedSecret, phoneE164, message, fetchImpl = fetch } = params;
+  const {
+    relayUrl,
+    sharedSecret,
+    phoneE164,
+    message,
+    fetchImpl = (...args: Parameters<typeof fetch>) => globalThis.fetch(...args)
+  } = params;
   const endpoint = `${relayUrl.replace(/\/+$/, "")}/relay/applink/sms/send`;
   const rawBody = JSON.stringify({
     message,
