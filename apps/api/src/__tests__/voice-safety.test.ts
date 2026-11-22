@@ -147,6 +147,42 @@ describe("OpenRouter Structured Intent Extractor", () => {
 
     expect(payload.intent).toBe("unknown");
   });
+
+  it("automatically fails over to next pinned model when primary model returns HTTP 429", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { code: 429, message: "Rate limited" } }), {
+          status: 429
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    intent: "get_monthly_collection"
+                  })
+                }
+              }
+            ]
+          }),
+          { status: 200 }
+        )
+      ) as unknown as typeof fetch;
+
+    const { payload, modelUsed } = await extractVoiceIntent({
+      transcript: "Ei mashe koto bhara adai hoise?",
+      apiKey: "test-openrouter-key",
+      fetchImpl: mockFetch
+    });
+
+    expect(payload.intent).toBe("get_monthly_collection");
+    expect(modelUsed).toBe("openrouter:nvidia/nemotron-3.5-lightning:free");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("Web Crypto HMAC & SMS Builders", () => {

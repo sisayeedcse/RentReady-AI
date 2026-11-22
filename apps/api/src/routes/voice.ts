@@ -18,7 +18,11 @@ import {
   dispatchApplinkSmsViaRelay
 } from "../modules/notifications/applink.js";
 import { GroqWhisperProvider } from "../modules/voice/asr.js";
-import { DEFAULT_INTENT_MODEL, extractVoiceIntent } from "../modules/voice/extractor.js";
+import {
+  DEFAULT_INTENT_MODEL,
+  extractVoiceIntent,
+  IntentProviderRateLimitError
+} from "../modules/voice/extractor.js";
 import {
   type PropertyCandidate,
   resolvePropertyEntity,
@@ -92,8 +96,9 @@ export function createVoiceRoutes(): Hono<{ Bindings: EnvBindings; Variables: Au
     }
 
     const openRouterKey = c.env.OPENROUTER_API_KEY;
-    if (!openRouterKey) {
-      return c.json({ error: "OPENROUTER_API_KEY is not configured on server" }, 503);
+    const groqKey = c.env.GROQ_API_KEY;
+    if (!openRouterKey && !groqKey) {
+      return c.json({ error: "Neither OPENROUTER_API_KEY nor GROQ_API_KEY is configured on server" }, 503);
     }
 
     const supabase = c.var.supabase;
@@ -117,11 +122,24 @@ export function createVoiceRoutes(): Hono<{ Bindings: EnvBindings; Variables: Au
       sessionId = created?.id;
     }
 
-    const { payload, modelUsed } = await extractVoiceIntent({
-      transcript: body.data.transcript,
-      apiKey: openRouterKey,
-      model: c.env.OPENROUTER_INTENT_MODEL || DEFAULT_INTENT_MODEL
-    });
+    let extracted: { payload: import("@rentready/shared").VoiceActionPayload; modelUsed: string };
+    try {
+      extracted = await extractVoiceIntent({
+        transcript: body.data.transcript,
+        apiKey: openRouterKey,
+        groqApiKey: groqKey,
+        model: c.env.OPENROUTER_INTENT_MODEL || DEFAULT_INTENT_MODEL
+      });
+    } catch (err) {
+      if (err instanceof IntentProviderRateLimitError) {
+        return c.json({ error: err.message }, 429);
+      }
+      return c.json(
+        { error: err instanceof Error ? err.message : "AI intent extraction failed" },
+        502
+      );
+    }
+    const { payload, modelUsed } = extracted;
 
     // Fetch landlord's active tenancies and properties for deterministic resolution
     const [tenanciesRes, propertiesRes] = await Promise.all([
