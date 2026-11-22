@@ -1,0 +1,8 @@
+# Copy to .dev.vars for local wrangler dev (NEVER commit .dev.vars)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+OPENROUTER_API_KEY=sk-or-v1-your-key
+OPENROUTER_INTENT_MODEL=google/gemma-4-26b-a4b-it:free
+GROQ_API_KEY=gsk_your-key
+APPLINK_RELAY_URL=http://127.0.0.1:8788
+RELAY_SHARED_SECRET=replace-with-32-byte-random-hex
