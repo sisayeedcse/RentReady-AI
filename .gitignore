@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.vite/
+.wrangler/
+
+# Environment & Secrets (NEVER commit real secrets)
+.env
+.env.local
+.env.*.local
+.dev.vars
+*.pem
+*.key
+
+# Supabase local temp
+supabase/.temp/
+supabase/.branches/
+
+# Testing & coverage
+coverage/
+playwright-report/
+test-results/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
