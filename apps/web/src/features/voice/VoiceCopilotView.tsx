@@ -1,9 +1,10 @@
-import { formatBdt } from "@rentready/shared";
-import { AlertTriangle, CheckCircle2, Mic, ShieldCheck, Sparkles, Square, X } from "lucide-react";
+import { CheckCircle2, Mic, Sparkles, Square } from "lucide-react";
 import { useRef, useState } from "react";
 import { apiFetch, generateIdempotencyKey } from "../../lib/api";
+import { toFriendlyError } from "../../lib/friendlyError";
 import { type Locale, t } from "../../lib/i18n";
 import { VoiceAnswerCard } from "./VoiceAnswerCard";
+import { type VoiceActionResult, VoiceConfirmationCard } from "./VoiceConfirmationCard";
 
 interface InterpretResponse {
   action_id?: string;
@@ -52,7 +53,7 @@ export function VoiceCopilotView({ accessToken, locale }: { accessToken: string;
   const [confirming, setConfirming] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [transcript, setTranscript] = useState("");
-  const [result, setResult] = useState<InterpretResponse | null>(null);
+  const [result, setResult] = useState<VoiceActionResult | null>(null);
   const [selectedTenancyId, setSelectedTenancyId] = useState<string>("");
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
   const [editedSms, setEditedSms] = useState<string>("");
@@ -127,7 +128,7 @@ export function VoiceCopilotView({ accessToken, locale }: { accessToken: string;
     setSelectedPropertyId("");
 
     try {
-      const res = await apiFetch<InterpretResponse>("/api/voice/interpret", accessToken, {
+      const res = await apiFetch<VoiceActionResult>("/api/voice/interpret", accessToken, {
         method: "POST",
         body: JSON.stringify({ transcript: transcript.trim(), session_id: sessionId })
       });
@@ -136,7 +137,7 @@ export function VoiceCopilotView({ accessToken, locale }: { accessToken: string;
         setEditedSms(res.resolved_entities.sms_preview);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Intent extraction failed");
+      setError(toFriendlyError(err, locale));
     } finally {
       setAnalyzing(false);
     }
@@ -274,119 +275,19 @@ export function VoiceCopilotView({ accessToken, locale }: { accessToken: string;
       )}
 
       {result && (result.status === "proposed" || result.status === "needs_clarification") && (
-        <section className="rounded-2xl border-2 border-amber-400 bg-amber-50/60 p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-amber-700" />
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">
-                  {t(locale, "confirmationRequired")}
-                </h4>
-                <p className="text-xs text-slate-600">
-                  Intent: <span className="font-mono font-semibold">{result.intent}</span>
-                </p>
-              </div>
-            </div>
-            <button type="button" onClick={handleReject} className="text-slate-500 hover:text-slate-900">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {result.status === "needs_clarification" &&
-            result.resolved_entities?.resolution?.candidates && (
-              <div className="mt-4 rounded-xl border border-amber-300 bg-white p-4">
-                <p className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
-                  <AlertTriangle className="h-4 w-4" />
-                  {t(locale, "disambiguationTitle")}
-                </p>
-                <div className="mt-2 space-y-1.5">
-                  {result.resolved_entities.resolution.candidates.map((cand) => {
-                    const id = cand.tenancy_id ?? cand.property_id ?? "";
-                    const isTenancy = Boolean(cand.tenancy_id);
-                    return (
-                      <label
-                        key={id}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-2 text-xs hover:bg-slate-50"
-                      >
-                        <input
-                          type="radio"
-                          name="clarify"
-                          value={id}
-                          onChange={() =>
-                            isTenancy ? setSelectedTenancyId(id) : setSelectedPropertyId(id)
-                          }
-                        />
-                        <span>
-                          {isTenancy
-                            ? `${cand.tenant_name} — Unit ${cand.unit_code}`
-                            : cand.name}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-          {result.resolved_entities?.tenancy && (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-xs space-y-1">
-              <p>
-                <span className="font-semibold">Tenant:</span>{" "}
-                {result.resolved_entities.tenancy.tenant_name} (Unit{" "}
-                {result.resolved_entities.tenancy.unit_code})
-              </p>
-              {typeof result.extracted_payload?.amount_bdt === "number" && (
-                <p className="text-sm font-bold text-emerald-700">
-                  Amount: {formatBdt(Math.round(result.extracted_payload.amount_bdt * 100), locale)}{" "}
-                  ({String(result.extracted_payload.payment_method ?? "cash")})
-                </p>
-              )}
-              {typeof result.resolved_entities.total_outstanding_paisa === "number" && (
-                <p className="text-slate-600">
-                  Current DB Outstanding:{" "}
-                  {formatBdt(result.resolved_entities.total_outstanding_paisa, locale)}
-                </p>
-              )}
-            </div>
-          )}
-
-          {result.intent === "prepare_rent_reminder" && (
-            <div className="mt-3">
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                AppLink SMS Preview (Editable)
-              </label>
-              <textarea
-                rows={3}
-                value={editedSms}
-                onChange={(e) => setEditedSms(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white p-3 text-xs"
-              />
-            </div>
-          )}
-
-          <div className="mt-4 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={handleReject}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
-            >
-              {t(locale, "cancel")}
-            </button>
-            <button
-              type="button"
-              disabled={
-                confirming ||
-                (result.status === "needs_clarification" &&
-                  !selectedTenancyId &&
-                  !selectedPropertyId)
-              }
-              onClick={handleConfirm}
-              className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {confirming ? "Executing..." : t(locale, "confirmAction")}
-            </button>
-          </div>
-        </section>
+        <VoiceConfirmationCard
+          result={result}
+          locale={locale}
+          selectedTenancyId={selectedTenancyId}
+          selectedPropertyId={selectedPropertyId}
+          editedSms={editedSms}
+          confirming={confirming}
+          onSelectTenancy={setSelectedTenancyId}
+          onSelectProperty={setSelectedPropertyId}
+          onChangeSms={setEditedSms}
+          onConfirm={() => void handleConfirm()}
+          onReject={() => void handleReject()}
+        />
       )}
     </div>
   );

@@ -1,19 +1,17 @@
-import { formatBdt } from "@rentready/shared";
 import {
-  AlertTriangle,
   CheckCircle2,
   Loader2,
   Mic,
   Send,
-  ShieldCheck,
   Sparkles,
-  Square,
-  X
+  Square
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch, generateIdempotencyKey } from "../../lib/api";
+import { toFriendlyError } from "../../lib/friendlyError";
 import { type Locale, t } from "../../lib/i18n";
 import { VoiceAnswerCard } from "./VoiceAnswerCard";
+import { type VoiceActionResult, VoiceConfirmationCard } from "./VoiceConfirmationCard";
 
 interface InterpretResponse {
   action_id?: string;
@@ -75,7 +73,7 @@ export function HeroVoiceLauncher({
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [transcript, setTranscript] = useState("");
   const [showTextBox, setShowTextBox] = useState(false);
-  const [result, setResult] = useState<InterpretResponse | null>(null);
+  const [result, setResult] = useState<VoiceActionResult | null>(null);
   const [selectedTenancyId, setSelectedTenancyId] = useState("");
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [editedSms, setEditedSms] = useState("");
@@ -156,7 +154,7 @@ export function HeroVoiceLauncher({
       // Automatically run safe interpretation (NEVER writes without confirmation!)
       await runInterpret(res.transcript, res.session_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Transcription failed");
+      setError(toFriendlyError(err, locale));
     } finally {
       setTranscribing(false);
     }
@@ -172,7 +170,7 @@ export function HeroVoiceLauncher({
     setSelectedPropertyId("");
 
     try {
-      const res = await apiFetch<InterpretResponse>("/api/voice/interpret", accessToken, {
+      const res = await apiFetch<VoiceActionResult>("/api/voice/interpret", accessToken, {
         method: "POST",
         body: JSON.stringify({ transcript: textToAnalyze.trim(), session_id: sid ?? sessionId })
       });
@@ -181,7 +179,7 @@ export function HeroVoiceLauncher({
         setEditedSms(res.resolved_entities.sms_preview);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not analyze command");
+      setError(toFriendlyError(err, locale));
     } finally {
       setAnalyzing(false);
     }
@@ -210,7 +208,7 @@ export function HeroVoiceLauncher({
       setTranscript("");
       onActionExecuted?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Confirmation failed");
+      setError(toFriendlyError(err, locale));
     } finally {
       setConfirming(false);
     }
@@ -390,105 +388,19 @@ export function HeroVoiceLauncher({
 
       {/* Explicit Confirmation / Disambiguation Card */}
       {result && (result.status === "proposed" || result.status === "needs_clarification") && (
-        <div className="animate-scale-in mt-4 rounded-2xl border-2 border-amber-300 bg-white p-4 text-left text-slate-900 shadow-xl">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-                <ShieldCheck className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-900">{t(locale, "confirmationRequired")}</p>
-                <p className="font-mono text-[11px] text-slate-500">{result.intent}</p>
-              </div>
-            </div>
-            <button type="button" onClick={() => void handleReject()} className="text-slate-400 hover:text-slate-700">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {result.status === "needs_clarification" &&
-            result.resolved_entities?.resolution?.candidates && (
-              <div className="mt-3 rounded-xl bg-amber-50 p-3">
-                <p className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
-                  <AlertTriangle className="h-4 w-4" />
-                  {t(locale, "disambiguationTitle")}
-                </p>
-                <div className="mt-2 space-y-1.5">
-                  {result.resolved_entities.resolution.candidates.map((cand) => {
-                    const id = cand.tenancy_id ?? cand.property_id ?? "";
-                    const isTenancy = Boolean(cand.tenancy_id);
-                    return (
-                      <label
-                        key={id}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-white p-2 text-xs font-medium"
-                      >
-                        <input
-                          type="radio"
-                          name="hero-clarify"
-                          value={id}
-                          onChange={() =>
-                            isTenancy ? setSelectedTenancyId(id) : setSelectedPropertyId(id)
-                          }
-                        />
-                        <span>
-                          {isTenancy ? `${cand.tenant_name} — Unit ${cand.unit_code}` : cand.name}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-          {result.resolved_entities?.tenancy && (
-            <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs space-y-1">
-              <p className="font-semibold text-slate-900">
-                {result.resolved_entities.tenancy.tenant_name} • Unit{" "}
-                {result.resolved_entities.tenancy.unit_code}
-              </p>
-              {typeof result.extracted_payload?.amount_bdt === "number" && (
-                <p className="text-base font-extrabold text-emerald-700">
-                  {formatBdt(Math.round(result.extracted_payload.amount_bdt * 100), locale)}{" "}
-                  <span className="text-xs font-semibold uppercase text-slate-500">
-                    ({String(result.extracted_payload.payment_method ?? "cash")})
-                  </span>
-                </p>
-              )}
-            </div>
-          )}
-
-          {result.intent === "prepare_rent_reminder" && (
-            <textarea
-              rows={2}
-              value={editedSms}
-              onChange={(e) => setEditedSms(e.target.value)}
-              className="mt-3 w-full rounded-xl border border-slate-300 p-2.5 text-xs"
-            />
-          )}
-
-          <div className="mt-4 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => void handleReject()}
-              className="rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-semibold text-slate-700 active:scale-95"
-            >
-              {t(locale, "cancel")}
-            </button>
-            <button
-              type="button"
-              disabled={
-                confirming ||
-                (result.status === "needs_clarification" &&
-                  !selectedTenancyId &&
-                  !selectedPropertyId)
-              }
-              onClick={() => void handleConfirm()}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-            >
-              {confirming ? "..." : t(locale, "confirmAction")}
-            </button>
-          </div>
-        </div>
+        <VoiceConfirmationCard
+          result={result}
+          locale={locale}
+          selectedTenancyId={selectedTenancyId}
+          selectedPropertyId={selectedPropertyId}
+          editedSms={editedSms}
+          confirming={confirming}
+          onSelectTenancy={setSelectedTenancyId}
+          onSelectProperty={setSelectedPropertyId}
+          onChangeSms={setEditedSms}
+          onConfirm={() => void handleConfirm()}
+          onReject={() => void handleReject()}
+        />
       )}
     </section>
   );

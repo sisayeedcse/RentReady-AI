@@ -1,5 +1,6 @@
 import { Building2, Lock, Mail, Mic, Send, ShieldCheck, User } from "lucide-react";
 import { useState } from "react";
+import { toFriendlyError } from "../../lib/friendlyError";
 import { type Locale, t } from "../../lib/i18n";
 import { isSupabaseConfigured, supabase } from "../../lib/supabase";
 
@@ -43,7 +44,7 @@ export function AuthScreen({
         if (err) throw err;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      setError(toFriendlyError(err, locale));
     } finally {
       setLoading(false);
     }

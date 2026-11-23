@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { toFriendlyError } from "../lib/friendlyError";
 import { MESSAGES, t } from "../lib/i18n";
 
 describe("Bangla / English i18n dictionary", () => {
@@ -12,5 +13,15 @@ describe("Bangla / English i18n dictionary", () => {
     expect(t("bn", "brand")).toBe("RentReady AI");
     expect(t("bn", "switchLang")).toBe("English");
     expect(t("en", "switchLang")).toBe("বাংলা");
+  });
+});
+
+describe("Customer-friendly error translator", () => {
+  it("converts raw HTTP 429, E1303, and auth errors into warm Bangla/English copy", () => {
+    expect(toFriendlyError(new Error("HTTP 429 rate-limited"), "bn")).toContain("৫–১০ সেকেন্ড");
+    expect(toFriendlyError(new Error("AppLink E1303 IP address not provisioned"), "en")).toContain(
+      "copy the text"
+    );
+    expect(toFriendlyError(new Error("Invalid login credentials"), "bn")).toContain("পাসওয়ার্ড");
   });
 });
