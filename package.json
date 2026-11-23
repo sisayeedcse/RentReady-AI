@@ -13,6 +13,7 @@
     "build": "pnpm -r run build",
     "dev:web": "pnpm --filter @rentready/web dev",
     "dev:api": "pnpm --filter @rentready/api dev",
-    "dev:relay": "pnpm --filter @rentready/applink-relay dev"
+    "dev:relay": "pnpm --filter @rentready/applink-relay dev",
+    "seed:demo": "node scripts/seed-demo.mjs"
   }
 }
