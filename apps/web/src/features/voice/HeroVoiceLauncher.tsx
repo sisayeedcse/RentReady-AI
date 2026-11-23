@@ -13,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { apiFetch, generateIdempotencyKey } from "../../lib/api";
 import { type Locale, t } from "../../lib/i18n";
+import { VoiceAnswerCard } from "./VoiceAnswerCard";
 
 interface InterpretResponse {
   action_id?: string;
@@ -376,21 +377,15 @@ export function HeroVoiceLauncher({
         </div>
       )}
 
-      {/* Read-only DB Answer */}
-      {result && result.status === "answered" && (
-        <div className="animate-scale-in mt-4 rounded-2xl bg-white p-4 text-left text-slate-900 shadow-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
-              {result.intent}
-            </span>
-            <button type="button" onClick={() => setResult(null)} className="text-slate-400 hover:text-slate-700">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <pre className="mt-2 max-h-48 overflow-auto rounded-xl bg-slate-900 p-3 text-[11px] text-emerald-300">
-            {JSON.stringify(result.data, null, 2)}
-          </pre>
-        </div>
+      {/* Human-Readable DB Answer Card */}
+      {result && (result.status === "answered" || result.status === "unknown") && (
+        <VoiceAnswerCard
+          intent={result.intent}
+          data={result.data}
+          reason={result.reason}
+          locale={locale}
+          onClose={() => setResult(null)}
+        />
       )}
 
       {/* Explicit Confirmation / Disambiguation Card */}

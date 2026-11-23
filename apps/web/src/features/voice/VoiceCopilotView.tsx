@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, Mic, ShieldCheck, Sparkles, Square, X } fr
 import { useRef, useState } from "react";
 import { apiFetch, generateIdempotencyKey } from "../../lib/api";
 import { type Locale, t } from "../../lib/i18n";
+import { VoiceAnswerCard } from "./VoiceAnswerCard";
 
 interface InterpretResponse {
   action_id?: string;
@@ -262,15 +263,14 @@ export function VoiceCopilotView({ accessToken, locale }: { accessToken: string;
         )}
       </section>
 
-      {result && result.status === "answered" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-          <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
-            DB-Verified Answer • {result.intent}
-          </p>
-          <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-4 text-xs text-emerald-300">
-            {JSON.stringify(result.data, null, 2)}
-          </pre>
-        </section>
+      {result && (result.status === "answered" || result.status === "unknown") && (
+        <VoiceAnswerCard
+          intent={result.intent}
+          data={result.data}
+          reason={result.reason}
+          locale={locale}
+          onClose={() => setResult(null)}
+        />
       )}
 
       {result && (result.status === "proposed" || result.status === "needs_clarification") && (
