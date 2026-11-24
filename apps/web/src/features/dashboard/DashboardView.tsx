@@ -1,8 +1,9 @@
-import { formatBdt } from "@rentready/shared";
+import { formatBdt } from "@rentready/shared/money";
 import {
   AlertCircle,
+  ArrowRight,
   Building2,
-  Calendar,
+  CheckCircle2,
   Phone,
   Receipt,
   RefreshCw,
@@ -14,7 +15,13 @@ import {
   Wrench
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import type { NavigateOptions, TabId } from "../../App";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Card, CardBody, CardHeader } from "../../components/ui/Card";
+import { AlertBanner, EmptyState, PageHeader, SkeletonCards } from "../../components/ui/States";
 import { apiFetch } from "../../lib/api";
+import { formatBillingMonth, formatDhakaDate, formatPaymentMethodLabel } from "../../lib/format";
 import { toFriendlyError } from "../../lib/friendlyError";
 import { getCurrentDhakaMonthLabel, type Locale, t } from "../../lib/i18n";
 import type { SmsDraft } from "../notifications/SmsModal";
@@ -71,7 +78,7 @@ export function DashboardView({
   locale: Locale;
   userName?: string;
   onOpenSms: (draft: SmsDraft) => void;
-  onNavigate: (tab: "finance" | "tenants" | "maintenance" | "properties") => void;
+  onNavigate: (tab: TabId, opts?: NavigateOptions) => void;
   onToast?: (msg: string) => void;
 }) {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -108,207 +115,385 @@ export function DashboardView({
       : 0;
   const monthLabel = getCurrentDhakaMonthLabel(locale);
 
+  const expectedPaisa = s?.expected_rent_paisa ?? 0;
+  const collectedPaisa = s?.collected_rent_paisa ?? 0;
+  const outstandingPaisa = s?.total_outstanding_paisa ?? 0;
+  const expensesPaisa = s?.monthly_expenses_paisa ?? 0;
+  const netPaisa = s?.net_operating_result_paisa ?? 0;
+
+  // Real proportional breakdown for the lightweight native cashflow bar
+  const totalVolume = Math.max(1, collectedPaisa + outstandingPaisa + expensesPaisa);
+  const collectedShare = Math.round((collectedPaisa / totalVolume) * 100);
+  const dueShare = Math.round((outstandingPaisa / totalVolume) * 100);
+  const expenseShare = Math.max(0, 100 - collectedShare - dueShare);
+
+  // SVG Occupancy ring geometry
+  const ringRadius = 22;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringDashOffset = ringCircumference * (1 - occPct / 100);
+
   return (
     <div className="space-y-5">
-      {/* Warm Bangladeshi Greeting Header */}
-      <div className="flex items-center justify-between gap-2 px-0.5">
-        <div>
-          <p className="text-xs font-semibold text-emerald-700">{t(locale, "greeting")}</p>
-          <h2 className="text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">
-            {userName || (locale === "bn" ? "বাড়িওয়ালা ড্যাশবোর্ড" : "Property Overview")}
-          </h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs">
-            <Calendar className="h-3.5 w-3.5 text-emerald-600" />
-            {monthLabel}
-          </span>
-          <button
-            type="button"
-            onClick={() => void load(true)}
-            aria-label="Refresh"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-2xs transition hover:bg-slate-50 active:scale-90"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-emerald-600" : ""}`} />
-          </button>
-        </div>
-      </div>
+      {/* Page Header */}
+      <PageHeader
+        eyebrow={t(locale, "greeting")}
+        title={userName || (locale === "bn" ? "বাড়িওয়ালা ড্যাশবোর্ড" : "Property Overview")}
+        subtitle={
+          locale === "bn"
+            ? `${monthLabel} — আপনার সম্পত্তি, আদায় ও বকেয়ার সারসংক্ষেপ`
+            : `${monthLabel} — Live financial summary and pending actions`
+        }
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void load(true)}
+              loading={refreshing}
+              aria-label={locale === "bn" ? "রিফ্রেশ করুন" : "Refresh dashboard"}
+            >
+              {!refreshing && <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
+              <span className="hidden sm:inline">{locale === "bn" ? "রিফ্রেশ" : "Refresh"}</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => onNavigate("finance", { financeSubTab: "bills" })}
+            >
+              <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
+              {t(locale, "recordPayment")}
+            </Button>
+          </>
+        }
+      />
 
-      {/* MOBILE LAUNCH HERO: BIG VOICE MIC BUTTON */}
+      {/* Compact Command-First Bangla Voice Bar (Keeps KPIs Above the Fold) */}
       <HeroVoiceLauncher
         accessToken={accessToken}
         locale={locale}
+        variant="compact"
         onActionExecuted={() => void load(true)}
         onToast={onToast}
       />
 
-      {/* bKash / TallyKhata Style 4-Button Quick Actions Strip */}
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
-        <QuickActionTile
-          icon={<Wallet className="h-5 w-5 text-emerald-700" />}
-          bg="bg-emerald-50"
-          label={t(locale, "quickTakeRent")}
-          onClick={() => onNavigate("finance")}
-        />
-        <QuickActionTile
-          icon={<Receipt className="h-5 w-5 text-rose-600" />}
-          bg="bg-rose-50"
-          label={t(locale, "quickExpense")}
-          onClick={() => onNavigate("finance")}
-        />
-        <QuickActionTile
-          icon={<Users className="h-5 w-5 text-blue-600" />}
-          bg="bg-blue-50"
-          label={t(locale, "quickTenant")}
-          onClick={() => onNavigate("tenants")}
-        />
-        <QuickActionTile
-          icon={<Wrench className="h-5 w-5 text-amber-600" />}
-          bg="bg-amber-50"
-          label={t(locale, "quickMaintenance")}
-          onClick={() => onNavigate("maintenance")}
-        />
-      </div>
-
       {error && (
-        <div role="alert" className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3.5 text-xs font-medium text-red-800">
-          {error}
+        <AlertBanner
+          tone="error"
+          message={error}
+          onRetry={() => void load(true)}
+          retryLabel={locale === "bn" ? "আবার চেষ্টা করুন" : "Retry"}
+        />
+      )}
+
+      {/* Primary Financial KPI Row */}
+      {loading ? (
+        <SkeletonCards count={4} cols="grid-cols-2 lg:grid-cols-4" />
+      ) : (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiTile
+            label={t(locale, "collectedRent")}
+            value={formatBdt(collectedPaisa, locale)}
+            accent="emerald"
+            meta={`${collectedPct}% ${locale === "bn" ? "আদায়" : "collected"}`}
+            icon={<TrendingUp className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />}
+          />
+          <KpiTile
+            label={t(locale, "outstandingRent")}
+            value={formatBdt(outstandingPaisa, locale)}
+            accent={outstandingPaisa > 0 ? "amber" : "neutral"}
+            meta={
+              (s?.overdue_obligations_count ?? 0) > 0
+                ? locale === "bn"
+                  ? `${s?.overdue_obligations_count}টি বকেয়া বিল`
+                  : `${s?.overdue_obligations_count} pending bill(s)`
+                : locale === "bn"
+                  ? "সব পরিশোধিত"
+                  : "All settled"
+            }
+            icon={<AlertCircle className="h-4 w-4 text-amber-700" aria-hidden="true" />}
+          />
+          <KpiTile
+            label={t(locale, "monthlyExpenses")}
+            value={formatBdt(expensesPaisa, locale)}
+            accent="rose"
+            meta={
+              locale === "bn"
+                ? `মোট বিল ${formatBdt(expectedPaisa, "bn")}`
+                : `Billed ${formatBdt(expectedPaisa, "en")}`
+            }
+            icon={<TrendingDown className="h-4 w-4 text-rose-700" aria-hidden="true" />}
+          />
+          <KpiTile
+            label={t(locale, "netResult")}
+            value={formatBdt(netPaisa, locale)}
+            accent={netPaisa >= 0 ? "emerald" : "rose"}
+            meta={locale === "bn" ? "আদায় − খরচ" : "Collected − Expenses"}
+            icon={<Wallet className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />}
+          />
         </div>
       )}
 
-      {/* Monthly Collection Progress Bar */}
-      <div className="animate-fade-up rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-        <div className="flex items-center justify-between text-xs font-bold">
-          <span className="text-slate-700">
-            {locale === "bn" ? `${monthLabel} — ভাড়া আদায়ের অগ্রগতি` : `${monthLabel} Collection Progress`}
-          </span>
-          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-emerald-700">
-            {collectedPct}%
-          </span>
-        </div>
-        <div
-          role="progressbar"
-          aria-valuenow={collectedPct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={locale === "bn" ? `মাসিক ভাড়া আদায় ${collectedPct}%` : `Monthly rent collection ${collectedPct}%`}
-          className="mt-2.5 h-3 w-full overflow-hidden rounded-full bg-slate-100"
-        >
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 ease-out"
-            style={{ width: `${collectedPct}%` }}
+      {/* Collection Progress + Occupancy & Quick Actions */}
+      <div className="grid gap-4 lg:grid-cols-12">
+        <Card className="lg:col-span-7">
+          <CardHeader
+            title={
+              locale === "bn"
+                ? `${monthLabel} — আদায় ও নগদ প্রবাহ`
+                : `${monthLabel} Collection & Cashflow`
+            }
+            badge={
+              <Badge tone={collectedPct >= 80 ? "emerald" : collectedPct > 0 ? "amber" : "neutral"}>
+                <span className="tabular-nums">{collectedPct}%</span>
+              </Badge>
+            }
           />
-        </div>
-        <div className="mt-2.5 flex items-center justify-between text-xs">
-          <span className="text-slate-500">
-            {t(locale, "collectedRent")}:{" "}
-            <strong className="text-emerald-700">
-              {formatBdt(s?.collected_rent_paisa ?? 0, locale)}
-            </strong>
-          </span>
-          <span className="text-slate-500">
-            {t(locale, "expectedRent")}:{" "}
-            <strong className="text-slate-900">
-              {formatBdt(s?.expected_rent_paisa ?? 0, locale)}
-            </strong>
-          </span>
-        </div>
+          <CardBody className="space-y-4">
+            {/* Primary Collection Progress Bar */}
+            <div>
+              <div className="mb-1.5 flex items-baseline justify-between text-xs">
+                <span className="font-medium text-[var(--ink-secondary)]">
+                  {locale === "bn" ? "মোট বিলের বিপরীতে আদায়" : "Collected against billed rent"}
+                </span>
+                <span className="tabular-nums font-bold text-[var(--ink-primary)]">
+                  {formatBdt(collectedPaisa, locale)}{" "}
+                  <span className="font-normal text-[var(--ink-muted)]">
+                    / {formatBdt(expectedPaisa, locale)}
+                  </span>
+                </span>
+              </div>
+              <div
+                role="progressbar"
+                aria-valuenow={collectedPct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={
+                  locale === "bn"
+                    ? `মাসিক ভাড়া আদায় ${collectedPct}%`
+                    : `Monthly rent collection ${collectedPct}%`
+                }
+                className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--bg-subtle)]"
+              >
+                <div
+                  className="h-full rounded-full bg-[#046c4e] transition-all duration-500 ease-out"
+                  style={{ width: `${collectedPct}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Real Cashflow Distribution Bar (Zero Fake Data) */}
+            <div className="border-t border-[var(--border-subtle)] pt-3.5">
+              <p className="mb-2 text-[11px] font-semibold text-[var(--ink-muted)]">
+                {locale === "bn"
+                  ? "আর্থিক অনুপাত (আদায় · বকেয়া · খরচ)"
+                  : "Ledger Breakdown (Collected · Due · Expenses)"}
+              </p>
+              <div
+                className="flex h-2 w-full overflow-hidden rounded-full bg-[var(--bg-subtle)]"
+                role="img"
+                aria-label={
+                  locale === "bn"
+                    ? `আদায় ${collectedShare}%, বকেয়া ${dueShare}%, খরচ ${expenseShare}%`
+                    : `Collected ${collectedShare}%, Due ${dueShare}%, Expenses ${expenseShare}%`
+                }
+              >
+                {collectedPaisa > 0 && (
+                  <div className="bg-[#046c4e]" style={{ width: `${collectedShare}%` }} />
+                )}
+                {outstandingPaisa > 0 && (
+                  <div className="bg-amber-500" style={{ width: `${dueShare}%` }} />
+                )}
+                {expensesPaisa > 0 && (
+                  <div className="bg-rose-500" style={{ width: `${expenseShare}%` }} />
+                )}
+              </div>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-medium text-[var(--ink-secondary)]">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-[#046c4e]" aria-hidden="true" />
+                  {t(locale, "collectedRent")}:{" "}
+                  <strong className="tabular-nums text-[var(--ink-primary)]">
+                    {formatBdt(collectedPaisa, locale)}
+                  </strong>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+                  {t(locale, "outstandingRent")}:{" "}
+                  <strong className="tabular-nums text-[var(--ink-primary)]">
+                    {formatBdt(outstandingPaisa, locale)}
+                  </strong>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden="true" />
+                  {t(locale, "monthlyExpenses")}:{" "}
+                  <strong className="tabular-nums text-[var(--ink-primary)]">
+                    {formatBdt(expensesPaisa, locale)}
+                  </strong>
+                </span>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+
+        {/* Occupancy Ring + 4 Direct Quick Actions */}
+        <Card className="lg:col-span-5">
+          <CardBody className="flex h-full flex-col justify-between gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3.5">
+                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+                  <svg className="h-14 w-14 -rotate-90" viewBox="0 0 56 56" aria-hidden="true">
+                    <circle
+                      cx="28"
+                      cy="28"
+                      r={ringRadius}
+                      fill="none"
+                      stroke="#ebeeea"
+                      strokeWidth="5"
+                    />
+                    <circle
+                      cx="28"
+                      cy="28"
+                      r={ringRadius}
+                      fill="none"
+                      stroke="#046c4e"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                      strokeDasharray={ringCircumference}
+                      strokeDashoffset={ringDashOffset}
+                      className="transition-all duration-500"
+                    />
+                  </svg>
+                  <span className="tabular-nums absolute text-xs font-extrabold text-[var(--ink-primary)]">
+                    {occPct}%
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-[var(--ink-muted)]">
+                    {t(locale, "occupancy")}
+                  </p>
+                  <p className="tabular-nums text-base font-bold text-[var(--ink-primary)]">
+                    {s?.occupied_units ?? 0}/{s?.total_units ?? 0}{" "}
+                    <span className="text-xs font-medium text-[var(--ink-muted)]">
+                      {locale === "bn" ? "টি ফ্ল্যাট" : "units"}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-[var(--ink-muted)]">
+                    {locale === "bn"
+                      ? `${s?.total_properties ?? 0}টি বাড়ি সক্রিয়`
+                      : `${s?.total_properties ?? 0} active properties`}
+                  </p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => onNavigate("properties")}>
+                <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </div>
+
+            {/* 4 Direct Functional Quick Actions (Add Expense opens Expenses sub-tab directly!) */}
+            <div className="grid grid-cols-2 gap-2 border-t border-[var(--border-subtle)] pt-3.5">
+              <QuickActionButton
+                icon={<Wallet className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />}
+                label={t(locale, "quickTakeRent")}
+                onClick={() => onNavigate("finance", { financeSubTab: "bills" })}
+              />
+              <QuickActionButton
+                icon={<Receipt className="h-4 w-4 text-rose-700" aria-hidden="true" />}
+                label={t(locale, "quickExpense")}
+                onClick={() => onNavigate("finance", { financeSubTab: "expenses" })}
+              />
+              <QuickActionButton
+                icon={<Users className="h-4 w-4 text-blue-700" aria-hidden="true" />}
+                label={t(locale, "quickTenant")}
+                onClick={() => onNavigate("tenants")}
+              />
+              <QuickActionButton
+                icon={<Wrench className="h-4 w-4 text-amber-700" aria-hidden="true" />}
+                label={t(locale, "quickMaintenance")}
+                onClick={() => onNavigate("maintenance")}
+              />
+            </div>
+          </CardBody>
+        </Card>
       </div>
 
-      {/* TallyKhata-Style Financial KPI Cards */}
-      {loading ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="h-24 animate-pulse rounded-2xl border border-slate-200/70 bg-white p-4"
-            >
-              <div className="h-3 w-20 rounded bg-slate-200" />
-              <div className="mt-4 h-6 w-28 rounded bg-slate-200" />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <KpiCard
-            label={t(locale, "collectedRent")}
-            value={formatBdt(s?.collected_rent_paisa ?? 0, locale)}
-            accent="emerald"
-            icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
+      {/* Actionable Operations Grid: Pending Dues + Recent Collections & Repairs */}
+      <div className="grid gap-5 lg:grid-cols-12">
+        {/* Pending Rent Dues */}
+        <Card className="lg:col-span-7">
+          <CardHeader
+            title={t(locale, "overdueList")}
+            badge={
+              <Badge tone={(data?.overdue_obligations ?? []).length > 0 ? "amber" : "emerald"}>
+                <span className="tabular-nums">{(data?.overdue_obligations ?? []).length}</span>
+              </Badge>
+            }
+            action={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onNavigate("finance", { financeSubTab: "bills" })}
+              >
+                <span>{locale === "bn" ? "সব বিল" : "All Bills"}</span>
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            }
           />
-          <KpiCard
-            label={t(locale, "outstandingRent")}
-            value={formatBdt(s?.total_outstanding_paisa ?? 0, locale)}
-            accent={(s?.total_outstanding_paisa ?? 0) > 0 ? "amber" : "slate"}
-            icon={<AlertCircle className="h-4 w-4 text-amber-600" />}
-          />
-          <KpiCard
-            label={t(locale, "netResult")}
-            value={formatBdt(s?.net_operating_result_paisa ?? 0, locale)}
-            accent="emerald"
-            icon={<Wallet className="h-4 w-4 text-emerald-700" />}
-          />
-          <KpiCard
-            label={t(locale, "monthlyExpenses")}
-            value={formatBdt(s?.monthly_expenses_paisa ?? 0, locale)}
-            accent="rose"
-            icon={<TrendingDown className="h-4 w-4 text-rose-500" />}
-          />
-          <KpiCard
-            label={t(locale, "expectedRent")}
-            value={formatBdt(s?.expected_rent_paisa ?? 0, locale)}
-            icon={<Wallet className="h-4 w-4 text-slate-500" />}
-          />
-          <KpiCard
-            label={t(locale, "occupancy")}
-            value={`${s?.occupied_units ?? 0}/${s?.total_units ?? 0} (${occPct}%)`}
-            icon={<Building2 className="h-4 w-4 text-slate-500" />}
-          />
-        </div>
-      )}
-
-      {/* Overdue Tenants + Recent Activity */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="animate-fade-up rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900">{t(locale, "overdueList")}</h3>
-            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
-              {(data?.overdue_obligations ?? []).length}
-            </span>
-          </div>
-          <div className="mt-3 divide-y divide-slate-100">
+          <div className="divide-y divide-[var(--border-subtle)]">
             {(data?.overdue_obligations ?? []).length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-500">
-                {locale === "bn" ? "কোনো বকেয়া ভাড়া নেই!" : "No pending rent dues!"}
-              </p>
+              <div className="p-5">
+                <EmptyState
+                  icon={<CheckCircle2 className="h-5 w-5 text-[#046c4e]" aria-hidden="true" />}
+                  title={locale === "bn" ? "কোনো বকেয়া ভাড়া নেই" : "No pending rent dues"}
+                  description={
+                    locale === "bn"
+                      ? "বর্তমান সময়ের সকল ভাড়ার বিল পরিশোধিত রয়েছে।"
+                      : "All current monthly rent obligations have been settled."
+                  }
+                />
+              </div>
             ) : (
               data?.overdue_obligations.map((o) => (
                 <div
                   key={o.obligation_id}
-                  className="flex items-center justify-between gap-2 py-3"
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-[var(--bg-hover)] sm:px-5"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900">
-                      {o.tenant_name}{" "}
-                      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="truncate text-sm font-bold text-[var(--ink-primary)]">
+                        {o.tenant_name}
+                      </p>
+                      <Badge tone="neutral">
                         {locale === "bn" ? `ফ্ল্যাট ${o.unit_code}` : `Unit ${o.unit_code}`}
-                      </span>
-                    </p>
-                    <p className="mt-0.5 text-xs font-bold text-amber-700">
-                      {formatBdt(o.outstanding_paisa, locale)}{" "}
-                      <span className="font-normal text-slate-600">• {o.billing_month.slice(0, 7)}</span>
+                      </Badge>
+                    </div>
+                    <p className="tabular-nums mt-0.5 text-xs text-[var(--ink-muted)]">
+                      <strong className="font-bold text-amber-800">
+                        {formatBdt(o.outstanding_paisa, locale)}
+                      </strong>{" "}
+                      · {formatBillingMonth(o.billing_month, locale)}
                     </p>
                   </div>
+
                   <div className="flex shrink-0 items-center gap-1.5">
                     <a
                       href={`tel:${o.tenant_phone}`}
-                      aria-label={locale === "bn" ? `${o.tenant_name}-কে কল করুন` : `Call ${o.tenant_name}`}
-                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-90"
+                      aria-label={
+                        locale === "bn" ? `${o.tenant_name}-কে কল করুন` : `Call ${o.tenant_name}`
+                      }
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-default)] bg-white text-[var(--ink-secondary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--ink-primary)]"
                     >
                       <Phone className="h-3.5 w-3.5" aria-hidden="true" />
                     </a>
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onNavigate("finance", { financeSubTab: "bills" })}
+                    >
+                      {t(locale, "recordPayment")}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() =>
                         onOpenSms({
                           tenantId: o.tenant_id,
@@ -321,88 +506,135 @@ export function DashboardView({
                               : `Hello ${o.tenant_name} (Unit ${o.unit_code}), your outstanding rent for ${o.billing_month.slice(0, 7)} is ${formatBdt(o.outstanding_paisa, "en")}. Please settle at your convenience.`
                         })
                       }
-                      className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-emerald-700 active:scale-95"
                     >
-                      <Send className="h-3.5 w-3.5" />
-                      {t(locale, "sendReminder")}
-                    </button>
+                      <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="hidden sm:inline">{t(locale, "sendReminder")}</span>
+                    </Button>
                   </div>
                 </div>
               ))
             )}
           </div>
-        </section>
+        </Card>
 
-        <section className="animate-fade-up rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <h3 className="text-sm font-bold text-slate-900">{t(locale, "recentPayments")}</h3>
-          <div className="mt-3 divide-y divide-slate-100">
-            {(data?.recent_payments ?? []).length === 0 ? (
-              <p className="py-5 text-center text-xs text-slate-500">{t(locale, "noData")}</p>
-            ) : (
-              data?.recent_payments.map((p) => (
-                <div key={p.id} className="flex items-center justify-between py-2.5 text-sm">
-                  <div>
-                    <p className="font-semibold text-slate-900">
-                      {p.tenants?.full_name ?? (locale === "bn" ? "ভাড়াটিয়া" : "Tenant")}{" "}
-                      {p.is_reversal && (
-                        <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
-                          {locale === "bn" ? "সংশোধন" : "REVERSAL"}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {p.payment_method.toUpperCase()} • {new Date(p.paid_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <span
-                    className={`font-extrabold ${p.is_reversal ? "text-rose-600" : "text-emerald-700"}`}
-                  >
-                    {formatBdt(p.amount_paisa, locale)}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="mt-5 border-t border-slate-100 pt-4">
-            <h4 className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-              <Wrench className="h-3.5 w-3.5 text-emerald-600" />
-              {t(locale, "openMaintenance")} ({s?.open_maintenance_count ?? 0})
-            </h4>
-            <div className="mt-2 space-y-2">
-              {(data?.open_maintenance ?? []).length === 0 ? (
-                <p className="text-xs text-slate-600">{t(locale, "noData")}</p>
+        {/* Recent Collections + Open Maintenance */}
+        <div className="space-y-5 lg:col-span-5">
+          <Card>
+            <CardHeader
+              title={t(locale, "recentPayments")}
+              action={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onNavigate("finance", { financeSubTab: "payments" })}
+                >
+                  <span>{locale === "bn" ? "সব দেখুন" : "View all"}</span>
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              }
+            />
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {(data?.recent_payments ?? []).length === 0 ? (
+                <p className="px-5 py-7 text-center text-xs text-[var(--ink-muted)]">
+                  {t(locale, "noData")}
+                </p>
               ) : (
-                (data?.open_maintenance ?? []).slice(0, 4).map((m) => (
+                data?.recent_payments.slice(0, 5).map((p) => (
                   <div
-                    key={m.id}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                    key={p.id}
+                    className="flex items-center justify-between gap-2 px-4 py-3 text-sm sm:px-5"
                   >
-                    <span className="truncate font-medium">
-                      {m.title} {m.units?.unit_code ? `(${m.units.unit_code})` : ""}
-                    </span>
-                    <span className="ml-2 shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
-                      {m.priority}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-xs font-bold text-[var(--ink-primary)] sm:text-[13px]">
+                          {p.tenants?.full_name ?? (locale === "bn" ? "ভাড়াটিয়া" : "Tenant")}
+                        </p>
+                        {p.is_reversal && (
+                          <Badge tone="rose">{locale === "bn" ? "সংশোধন" : "Reversal"}</Badge>
+                        )}
+                      </div>
+                      <p className="tabular-nums mt-0.5 text-[11px] text-[var(--ink-muted)]">
+                        {formatPaymentMethodLabel(p.payment_method, locale)} ·{" "}
+                        {formatDhakaDate(p.paid_at, locale)}
+                      </p>
+                    </div>
+                    <span
+                      className={`tabular-nums shrink-0 text-sm font-bold ${
+                        p.is_reversal ? "text-rose-700" : "text-[#046c4e]"
+                      }`}
+                    >
+                      {formatBdt(p.amount_paisa, locale)}
                     </span>
                   </div>
                 ))
               )}
             </div>
-          </div>
-        </section>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title={t(locale, "openMaintenance")}
+              badge={
+                <Badge tone={(s?.open_maintenance_count ?? 0) > 0 ? "amber" : "neutral"}>
+                  <span className="tabular-nums">{s?.open_maintenance_count ?? 0}</span>
+                </Badge>
+              }
+              action={
+                <Button variant="ghost" size="sm" onClick={() => onNavigate("maintenance")}>
+                  <span>{locale === "bn" ? "পরিচালনা" : "Manage"}</span>
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              }
+            />
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {(data?.open_maintenance ?? []).length === 0 ? (
+                <p className="px-5 py-6 text-center text-xs text-[var(--ink-muted)]">
+                  {t(locale, "noData")}
+                </p>
+              ) : (
+                (data?.open_maintenance ?? []).slice(0, 4).map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between gap-2 px-4 py-3 text-xs sm:px-5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-[var(--ink-primary)]">{m.title}</p>
+                      {m.units?.unit_code && (
+                        <p className="mt-0.5 text-[11px] text-[var(--ink-muted)]">
+                          {locale === "bn"
+                            ? `ফ্ল্যাট ${m.units.unit_code}`
+                            : `Unit ${m.units.unit_code}`}
+                        </p>
+                      )}
+                    </div>
+                    <Badge
+                      tone={
+                        m.priority === "urgent" || m.priority === "high"
+                          ? "rose"
+                          : m.priority === "medium"
+                            ? "amber"
+                            : "neutral"
+                      }
+                    >
+                      {m.priority.toUpperCase()}
+                    </Badge>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
 }
 
-function QuickActionTile({
+function QuickActionButton({
   icon,
-  bg,
   label,
   onClick
 }: {
   icon: React.ReactNode;
-  bg: string;
   label: string;
   onClick: () => void;
 }) {
@@ -410,43 +642,49 @@ function QuickActionTile({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white p-3 text-center shadow-2xs transition hover:-translate-y-0.5 hover:shadow-sm active:scale-95"
+      className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-rail)] px-3 py-2 text-left text-xs font-semibold text-[var(--ink-primary)] transition-colors hover:border-[var(--border-strong)] hover:bg-white active:scale-[0.98]"
     >
-      <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}>{icon}</span>
-      <span className="text-[11px] font-bold text-slate-800">{label}</span>
+      {icon}
+      <span className="truncate">{label}</span>
     </button>
   );
 }
 
-function KpiCard({
+function KpiTile({
   label,
   value,
+  meta,
   icon,
-  accent = "slate"
+  accent = "neutral"
 }: {
   label: string;
   value: string;
+  meta: string;
   icon: React.ReactNode;
-  accent?: "slate" | "emerald" | "amber" | "rose";
+  accent?: "neutral" | "emerald" | "amber" | "rose";
 }) {
   const valueClass =
     accent === "emerald"
-      ? "text-emerald-700"
+      ? "text-[#046c4e]"
       : accent === "amber"
-        ? "text-amber-700"
+        ? "text-amber-800"
         : accent === "rose"
           ? "text-rose-700"
-          : "text-slate-900";
+          : "text-[var(--ink-primary)]";
+
   return (
-    <div className="animate-fade-up rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-        <span className="truncate">{label}</span>
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-50">
+    <div className="surface-card rounded-xl p-4 transition-colors hover:border-[var(--border-strong)]">
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-xs font-semibold text-[var(--ink-muted)]">{label}</span>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-subtle)]">
           {icon}
         </span>
       </div>
-      <p className={`mt-2 text-lg font-extrabold tracking-tight sm:text-2xl ${valueClass}`}>
+      <p className={`tabular-nums mt-2 text-xl font-extrabold tracking-tight sm:text-2xl ${valueClass}`}>
         {value}
+      </p>
+      <p className="tabular-nums mt-1 truncate text-[11px] font-medium text-[var(--ink-muted)]">
+        {meta}
       </p>
     </div>
   );

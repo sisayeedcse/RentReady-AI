@@ -1,6 +1,18 @@
-import { bdtToPaisa, formatBdt } from "@rentready/shared";
-import { Building2, Home, MapPin, Plus, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { addPaisa, bdtToPaisa, formatBdt } from "@rentready/shared/money";
+import { Building2, Home, MapPin, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Field, Input, Select } from "../../components/ui/Input";
+import { Modal } from "../../components/ui/Modal";
+import {
+  AlertBanner,
+  EmptyState,
+  PageHeader,
+  SearchInput,
+  SkeletonCards
+} from "../../components/ui/States";
+import { FilterPills } from "../../components/ui/Tabs";
 import { apiFetch } from "../../lib/api";
 import { toFriendlyError } from "../../lib/friendlyError";
 import { type Locale, t } from "../../lib/i18n";
@@ -33,8 +45,13 @@ export function PropertiesView({
 }) {
   const [properties, setProperties] = useState<PropertyRow[]>([]);
   const [units, setUnits] = useState<UnitRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "occupied" | "vacant">("all");
-  const [openForm, setOpenForm] = useState<"none" | "property" | "unit">("none");
+  const [activePropertyId, setActivePropertyId] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [, startTransition] = useTransition();
+
+  const [openModal, setOpenModal] = useState<"none" | "property" | "unit">("none");
   const [propName, setPropName] = useState("");
   const [propAddress, setPropAddress] = useState("");
   const [selectedPropId, setSelectedPropId] = useState("");
@@ -46,17 +63,23 @@ export function PropertiesView({
 
   const load = useCallback(async () => {
     try {
+      setError(null);
       const [pRes, uRes] = await Promise.all([
         apiFetch<{ data: PropertyRow[] }>("/api/properties", accessToken),
         apiFetch<{ data: UnitRow[] }>("/api/units", accessToken)
       ]);
       setProperties(pRes.data);
       setUnits(uRes.data);
-      if (pRes.data[0] && !selectedPropId) setSelectedPropId(pRes.data[0].id);
+      const firstId = pRes.data[0]?.id ?? "";
+      if (firstId) {
+        setSelectedPropId((prev) => prev || firstId);
+      }
     } catch (err) {
       setError(toFriendlyError(err, locale));
+    } finally {
+      setLoading(false);
     }
-  }, [accessToken, locale, selectedPropId]);
+  }, [accessToken, locale]);
 
   useEffect(() => {
     void load();
@@ -73,7 +96,7 @@ export function PropertiesView({
       });
       setPropName("");
       setPropAddress("");
-      setOpenForm("none");
+      setOpenModal("none");
       onToast?.(locale === "bn" ? "নতুন বাড়ি যুক্ত হয়েছে!" : "Property added!");
       await load();
     } catch (err) {
@@ -99,7 +122,7 @@ export function PropertiesView({
       });
       setUnitCode("");
       setFloorLabel("");
-      setOpenForm("none");
+      setOpenModal("none");
       onToast?.(locale === "bn" ? "নতুন ফ্ল্যাট যুক্ত হয়েছে!" : "Unit added!");
       await load();
     } catch (err) {
@@ -109,281 +132,390 @@ export function PropertiesView({
     }
   }
 
-  const occupiedCount = units.filter((u) => u.status === "occupied").length;
-  const vacantCount = units.filter((u) => u.status === "vacant").length;
-  const filteredUnits = units.filter((u) => (filter === "all" ? true : u.status === filter));
+  const propertyStats = useMemo(() => {
+    const map = new Map<string, { total: number; occupied: number; rentPaisa: number }>();
+    for (const u of units) {
+      const curr = map.get(u.property_id) ?? { total: 0, occupied: 0, rentPaisa: 0 };
+      curr.total += 1;
+      if (u.status === "occupied") curr.occupied += 1;
+      curr.rentPaisa = addPaisa(curr.rentPaisa, u.default_rent_paisa);
+      map.set(u.property_id, curr);
+    }
+    return map;
+  }, [units]);
+
+  const scopedUnits = useMemo(
+    () =>
+      activePropertyId === "all"
+        ? units
+        : units.filter((u) => u.property_id === activePropertyId),
+    [units, activePropertyId]
+  );
+
+  const occupiedCount = useMemo(
+    () => scopedUnits.filter((u) => u.status === "occupied").length,
+    [scopedUnits]
+  );
+  const vacantCount = useMemo(
+    () => scopedUnits.filter((u) => u.status === "vacant").length,
+    [scopedUnits]
+  );
+
+  const filteredUnits = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return scopedUnits.filter((u) => {
+      if (filter !== "all" && u.status !== filter) return false;
+      if (!q) return true;
+      return (
+        u.unit_code.toLowerCase().includes(q) ||
+        (u.floor_label ?? "").toLowerCase().includes(q) ||
+        (u.properties?.name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [scopedUnits, filter, search]);
 
   return (
     <div className="space-y-5">
-      {/* Header + Action Buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-extrabold text-slate-900">
-            {locale === "bn" ? "বাড়ি ও ফ্ল্যাট তালিকা" : "Properties & Units"}
-          </h2>
-          <p className="text-xs text-slate-500">
-            {locale === "bn"
-              ? `${properties.length}টি বাড়ি • ${units.length}টি ফ্ল্যাট (${occupiedCount}টি ভাড়া, ${vacantCount}টি খালি)`
-              : `${properties.length} properties • ${units.length} units (${occupiedCount} occupied, ${vacantCount} vacant)`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setOpenForm(openForm === "property" ? "none" : "property")}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-2xs transition hover:bg-slate-50 active:scale-95"
-          >
-            <Plus className="h-4 w-4 text-emerald-600" />
-            {locale === "bn" ? "নতুন বাড়ি" : "Add Property"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setOpenForm(openForm === "unit" ? "none" : "unit")}
-            disabled={properties.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            {locale === "bn" ? "নতুন ফ্ল্যাট" : "Add Unit"}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title={locale === "bn" ? "বাড়ি ও ফ্ল্যাট তালিকা" : "Properties & Units"}
+        subtitle={
+          locale === "bn"
+            ? `${properties.length}টি বাড়ি · ${units.length}টি ফ্ল্যাট (${occupiedCount}টি ভাড়া, ${vacantCount}টি খালি)`
+            : `${properties.length} properties · ${units.length} units (${occupiedCount} occupied, ${vacantCount} vacant)`
+        }
+        actions={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setOpenModal("property")}>
+              <Plus className="h-3.5 w-3.5 text-[#046c4e]" aria-hidden="true" />
+              {locale === "bn" ? "নতুন বাড়ি" : "Add Property"}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={properties.length === 0}
+              onClick={() => {
+                if (activePropertyId !== "all") setSelectedPropId(activePropertyId);
+                setOpenModal("unit");
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              {locale === "bn" ? "নতুন ফ্ল্যাট" : "Add Unit"}
+            </Button>
+          </>
+        }
+      />
 
       {error && (
-        <div role="alert" className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
-          {error}
-        </div>
+        <AlertBanner
+          tone="error"
+          message={error}
+          onRetry={() => void load()}
+          onDismiss={() => setError(null)}
+        />
       )}
 
-      {/* Collapsible Add Property Form */}
-      {openForm === "property" && (
-        <form
-          onSubmit={addProperty}
-          className="animate-scale-in rounded-2xl border border-emerald-200 bg-white p-5 shadow-md space-y-3"
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-              <Building2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-              {locale === "bn" ? "নতুন বাড়ির তথ্য দিন" : "New Property Details"}
-            </h3>
-            <button
-              type="button"
-              onClick={() => setOpenForm("none")}
-              aria-label={locale === "bn" ? "ফর্ম বন্ধ করুন" : "Close form"}
-              className="rounded-lg p-1 text-slate-600 hover:bg-slate-100"
+      {loading ? (
+        <SkeletonCards count={6} />
+      ) : (
+        <>
+          {/* Interactive Property Filter Strip */}
+          {properties.length > 0 && (
+            <div
+              role="group"
+              aria-label={locale === "bn" ? "বাড়ি নির্বাচন ফিল্টার" : "Filter by property"}
+              className="no-scrollbar flex gap-2.5 overflow-x-auto pb-1"
             >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
+              <button
+                type="button"
+                aria-pressed={activePropertyId === "all"}
+                onClick={() => startTransition(() => setActivePropertyId("all"))}
+                className={`min-w-[160px] shrink-0 cursor-pointer rounded-xl border p-3.5 text-left transition-colors ${
+                  activePropertyId === "all"
+                    ? "border-[#046c4e] bg-[#ecfdf5]/70"
+                    : "border-[var(--border-default)] bg-white hover:border-[var(--border-strong)]"
+                }`}
+              >
+                <p className="text-xs font-bold text-[var(--ink-primary)]">
+                  {locale === "bn" ? "সব বাড়ি" : "All Properties"}
+                </p>
+                <p className="tabular-nums mt-1 text-[11px] text-[var(--ink-muted)]">
+                  {locale === "bn"
+                    ? `${properties.length}টি বাড়ি · ${units.length}টি ফ্ল্যাট`
+                    : `${properties.length} properties · ${units.length} units`}
+                </p>
+              </button>
+
+              {properties.map((p) => {
+                const st = propertyStats.get(p.id) ?? { total: 0, occupied: 0, rentPaisa: 0 };
+                const active = activePropertyId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => startTransition(() => setActivePropertyId(p.id))}
+                    className={`min-w-[230px] shrink-0 cursor-pointer rounded-xl border p-3.5 text-left transition-colors ${
+                      active
+                        ? "border-[#046c4e] bg-[#ecfdf5]/70"
+                        : "border-[var(--border-default)] bg-white hover:border-[var(--border-strong)]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold text-[var(--ink-primary)]">
+                          {p.name}
+                        </p>
+                        <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-[var(--ink-muted)]">
+                          <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{p.address}</span>
+                        </p>
+                      </div>
+                      <Badge tone={st.occupied === st.total && st.total > 0 ? "emerald" : "neutral"}>
+                        <span className="tabular-nums">
+                          {st.occupied}/{st.total}
+                        </span>
+                      </Badge>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Filter & Search Toolbar */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <FilterPills
+              ariaLabel={locale === "bn" ? "ফ্ল্যাট অবস্থা ফিল্টার" : "Filter units by status"}
+              value={filter}
+              onChange={(next) => startTransition(() => setFilter(next))}
+              options={[
+                { id: "all", label: t(locale, "all"), count: scopedUnits.length },
+                { id: "occupied", label: t(locale, "occupied"), count: occupiedCount },
+                { id: "vacant", label: t(locale, "vacant"), count: vacantCount }
+              ]}
+            />
+            <SearchInput
+              value={search}
+              onChange={(v) => startTransition(() => setSearch(v))}
+              placeholder={
+                locale === "bn" ? "ফ্ল্যাট নম্বর বা তলা খুঁজুন..." : "Search unit code or floor..."
+              }
+              ariaLabel={locale === "bn" ? "ফ্ল্যাট খুঁজুন" : "Search units"}
+              className="sm:w-64"
+            />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <input
+
+          {/* Units Grid */}
+          {filteredUnits.length === 0 ? (
+            <EmptyState
+              icon={<Home className="h-5 w-5" aria-hidden="true" />}
+              title={t(locale, "noData")}
+              description={
+                properties.length === 0
+                  ? locale === "bn"
+                    ? "শুরু করতে প্রথমে একটি নতুন বাড়ি যুক্ত করুন।"
+                    : "Start by adding your first property, then add its rental units."
+                  : undefined
+              }
+              action={
+                properties.length === 0 ? (
+                  <Button variant="primary" size="sm" onClick={() => setOpenModal("property")}>
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    {locale === "bn" ? "প্রথম বাড়ি যুক্ত করুন" : "Add First Property"}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredUnits.map((u) => {
+                const isOccupied = u.status === "occupied";
+                return (
+                  <div
+                    key={u.id}
+                    className="surface-card rounded-xl p-4 transition-colors hover:border-[var(--border-strong)]"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-base font-bold text-[var(--ink-primary)]">
+                          {locale === "bn" ? `ফ্ল্যাট ${u.unit_code}` : `Unit ${u.unit_code}`}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-[var(--ink-muted)]">
+                          {u.properties?.name}
+                          {u.floor_label ? ` · ${u.floor_label}` : ""}
+                        </p>
+                      </div>
+                      <Badge tone={isOccupied ? "emerald" : "neutral"} dot>
+                        {isOccupied ? t(locale, "occupied") : t(locale, "vacant")}
+                      </Badge>
+                    </div>
+                    <div className="mt-4 flex items-baseline justify-between border-t border-[var(--border-subtle)] pt-3">
+                      <span className="text-[11px] font-medium text-[var(--ink-muted)]">
+                        {locale === "bn" ? "নির্ধারিত মাসিক ভাড়া" : "Default Monthly Rent"}
+                      </span>
+                      <span className="tabular-nums text-base font-bold text-[#046c4e]">
+                        {formatBdt(u.default_rent_paisa, locale)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ADD PROPERTY MODAL */}
+      <Modal
+        open={openModal === "property"}
+        onClose={() => setOpenModal("none")}
+        titleId="add-property-modal-title"
+        maxWidth="max-w-md"
+        closeLabel={locale === "bn" ? "বন্ধ করুন" : "Close dialog"}
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />
+            {locale === "bn" ? "নতুন বাড়ির তথ্য দিন" : "Add New Property"}
+          </span>
+        }
+      >
+        <form onSubmit={addProperty} className="space-y-4">
+          <Field
+            id="prop-name-input"
+            label={locale === "bn" ? "বাড়ির নাম" : "Property Name"}
+            required
+          >
+            <Input
+              id="prop-name-input"
               required
-              aria-label={locale === "bn" ? "বাড়ির নাম" : "Property name"}
               value={propName}
               onChange={(e) => setPropName(e.target.value)}
-              placeholder={locale === "bn" ? "বাড়ির নাম (যেমন: শান্তি নিবাস)" : "Property name (e.g. Shanti Nibash)"}
-              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
+              placeholder={
+                locale === "bn" ? "যেমন: শান্তি নিবাস" : "e.g. Shanti Nibash"
+              }
             />
-            <input
+          </Field>
+
+          <Field
+            id="prop-address-input"
+            label={locale === "bn" ? "ঠিকানা" : "Address"}
+            required
+          >
+            <Input
+              id="prop-address-input"
               required
-              aria-label={locale === "bn" ? "বাড়ির ঠিকানা" : "Property address"}
               value={propAddress}
               onChange={(e) => setPropAddress(e.target.value)}
-              placeholder={locale === "bn" ? "ঠিকানা (যেমন: ধানমন্ডি ৯/এ, ঢাকা)" : "Address (e.g. Dhanmondi 9/A, Dhaka)"}
-              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
+              placeholder={
+                locale === "bn"
+                  ? "যেমন: ধানমন্ডি ৯/এ, ঢাকা"
+                  : "e.g. House 14, Road 9/A, Dhanmondi"
+              }
             />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setOpenForm("none")}
-              className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700"
-            >
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setOpenModal("none")}>
               {t(locale, "cancel")}
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700"
-            >
-              {saving ? "..." : locale === "bn" ? "বাড়ি সেভ করুন" : "Save Property"}
-            </button>
+            </Button>
+            <Button type="submit" variant="primary" loading={saving}>
+              {locale === "bn" ? "বাড়ি সেভ করুন" : "Save Property"}
+            </Button>
           </div>
         </form>
-      )}
+      </Modal>
 
-      {/* Collapsible Add Unit Form */}
-      {openForm === "unit" && (
-        <form
-          onSubmit={addUnit}
-          className="animate-scale-in rounded-2xl border border-emerald-200 bg-white p-5 shadow-md space-y-3"
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-              <Home className="h-4 w-4 text-emerald-600" />
-              {locale === "bn" ? "নতুন ফ্ল্যাট / ইউনিট যোগ করুন" : "Add New Unit / Flat"}
-            </h3>
-            <button
-              type="button"
-              onClick={() => setOpenForm("none")}
-              aria-label={locale === "bn" ? "ফর্ম বন্ধ করুন" : "Close form"}
-              className="rounded-lg p-1 text-slate-600 hover:bg-slate-100"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <select
+      {/* ADD UNIT MODAL */}
+      <Modal
+        open={openModal === "unit"}
+        onClose={() => setOpenModal("none")}
+        titleId="add-unit-modal-title"
+        maxWidth="max-w-md"
+        closeLabel={locale === "bn" ? "বন্ধ করুন" : "Close dialog"}
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Home className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />
+            {locale === "bn" ? "নতুন ফ্ল্যাট / ইউনিট যোগ করুন" : "Add New Unit / Flat"}
+          </span>
+        }
+      >
+        <form onSubmit={addUnit} className="space-y-4">
+          <Field
+            id="unit-prop-select"
+            label={locale === "bn" ? "বাড়ি নির্বাচন করুন" : "Property"}
+            required
+          >
+            <Select
+              id="unit-prop-select"
               required
-              aria-label={locale === "bn" ? "বাড়ি নির্বাচন করুন" : "Select property"}
               value={selectedPropId}
               onChange={(e) => setSelectedPropId(e.target.value)}
-              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
             >
-              <option value="">{locale === "bn" ? "বাড়ি বাছাই করুন" : "Select property"}</option>
+              <option value="">
+                {locale === "bn" ? "বাড়ি বাছাই করুন" : "Select property"}
+              </option>
               {properties.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
-            </select>
-            <input
+            </Select>
+          </Field>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              id="unit-code-input"
+              label={locale === "bn" ? "ফ্ল্যাট নম্বর" : "Unit Code"}
               required
-              aria-label={locale === "bn" ? "ফ্ল্যাট নম্বর" : "Unit code"}
-              value={unitCode}
-              onChange={(e) => setUnitCode(e.target.value)}
-              placeholder={locale === "bn" ? "ফ্ল্যাট নং (যেমন: 3B)" : "Unit code (e.g. 3B)"}
-              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
-            />
-            <input
-              aria-label={locale === "bn" ? "তলা (ঐচ্ছিক)" : "Floor label (optional)"}
-              value={floorLabel}
-              onChange={(e) => setFloorLabel(e.target.value)}
-              placeholder={locale === "bn" ? "তলা (যেমন: ৩য় তলা)" : "Floor (optional)"}
-              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
-            />
-            <input
+            >
+              <Input
+                id="unit-code-input"
+                required
+                value={unitCode}
+                onChange={(e) => setUnitCode(e.target.value)}
+                placeholder={locale === "bn" ? "যেমন: 3B" : "e.g. 3B"}
+              />
+            </Field>
+            <Field
+              id="unit-floor-input"
+              label={locale === "bn" ? "তলা (ঐচ্ছিক)" : "Floor (Optional)"}
+            >
+              <Input
+                id="unit-floor-input"
+                value={floorLabel}
+                onChange={(e) => setFloorLabel(e.target.value)}
+                placeholder={locale === "bn" ? "যেমন: ৩য় তলা" : "e.g. 3rd Floor"}
+              />
+            </Field>
+          </div>
+
+          <Field
+            id="unit-rent-input"
+            label={locale === "bn" ? "মাসিক ভাড়া (টাকা)" : "Default Monthly Rent (BDT)"}
+            required
+          >
+            <Input
+              id="unit-rent-input"
               required
-              aria-label={locale === "bn" ? "মাসিক ভাড়া (টাকা)" : "Monthly rent (BDT)"}
               type="number"
               min="1"
               step="0.01"
               value={unitRentBdt}
               onChange={(e) => setUnitRentBdt(e.target.value)}
-              placeholder={locale === "bn" ? "মাসিক ভাড়া (টাকা)" : "Monthly Rent (BDT)"}
-              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
+              className="tabular-nums font-semibold"
             />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setOpenForm("none")}
-              className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700"
-            >
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setOpenModal("none")}>
               {t(locale, "cancel")}
-            </button>
-            <button
-              type="submit"
-              disabled={saving || !selectedPropId}
-              className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700"
-            >
-              {saving ? "..." : locale === "bn" ? "ফ্ল্যাট সেভ করুন" : "Save Unit"}
-            </button>
+            </Button>
+            <Button type="submit" variant="primary" loading={saving} disabled={!selectedPropId}>
+              {locale === "bn" ? "ফ্ল্যাট সেভ করুন" : "Save Unit"}
+            </Button>
           </div>
         </form>
-      )}
-
-      {/* Properties Strip */}
-      {properties.length > 0 && (
-        <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
-          {properties.map((p) => (
-            <div
-              key={p.id}
-              className="min-w-[220px] rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs"
-            >
-              <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                  <Building2 className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-slate-900">{p.name}</p>
-                  <p className="flex items-center gap-1 truncate text-[11px] text-slate-500">
-                    <MapPin className="h-3 w-3 shrink-0" />
-                    {p.address}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Filter Pills */}
-      <div className="flex items-center gap-2">
-        {(
-          [
-            ["all", `${t(locale, "all")} (${units.length})`],
-            ["occupied", `${t(locale, "occupied")} (${occupiedCount})`],
-            ["vacant", `${t(locale, "vacant")} (${vacantCount})`]
-          ] as const
-        ).map(([val, label]) => (
-          <button
-            key={val}
-            type="button"
-            onClick={() => setFilter(val)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition active:scale-95 ${
-              filter === val
-                ? "bg-slate-900 text-white shadow-xs"
-                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Units Card Grid */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredUnits.length === 0 ? (
-          <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white py-10 text-center text-xs text-slate-500">
-            {t(locale, "noData")}
-          </div>
-        ) : (
-          filteredUnits.map((u) => (
-            <div
-              key={u.id}
-              className="animate-fade-up rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="text-base font-extrabold text-slate-900">
-                    {locale === "bn" ? `ফ্ল্যাট ${u.unit_code}` : `Unit ${u.unit_code}`}
-                  </span>
-                  <p className="text-xs text-slate-500">
-                    {u.properties?.name} {u.floor_label ? `• ${u.floor_label}` : ""}
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                    u.status === "occupied"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {u.status === "occupied" ? t(locale, "occupied") : t(locale, "vacant")}
-                </span>
-              </div>
-              <div className="mt-3 flex items-baseline justify-between border-t border-slate-100 pt-3">
-                <span className="text-[11px] font-medium text-slate-500">
-                  {locale === "bn" ? "মাসিক ভাড়া" : "Monthly Rent"}
-                </span>
-                <span className="text-base font-extrabold text-emerald-700">
-                  {formatBdt(u.default_rent_paisa, locale)}
-                </span>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      </Modal>
     </div>
   );
 }

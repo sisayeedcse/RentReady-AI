@@ -1,4 +1,6 @@
-import { HelpCircle, Receipt, Send, Wallet, Wrench } from "lucide-react";
+import { ArrowUpRight, HelpCircle, Receipt, Send, Wallet, Wrench } from "lucide-react";
+import { useState } from "react";
+import { Card, CardBody, CardHeader } from "../../components/ui/Card";
 import type { Locale } from "../../lib/i18n";
 import { HeroVoiceLauncher } from "./HeroVoiceLauncher";
 
@@ -11,94 +13,120 @@ export function VoiceCopilotView({
   locale: Locale;
   onToast?: (msg: string) => void;
 }) {
+  const [command, setCommand] = useState<{ text: string; seq: number } | null>(null);
+
   const examples =
     locale === "bn"
       ? [
           {
-            icon: <Wallet className="h-4 w-4 text-emerald-600" />,
+            icon: <Wallet className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />,
             title: "ভাড়া জমা করা",
-            say: "“ফ্ল্যাট 3B এর রহিম ভাই ৮০০০ টাকা বিকাশ করেছে”"
+            prompt: "ফ্ল্যাট 3B এর রহিম ভাই ৮০০০ টাকা বিকাশ করেছে"
           },
           {
-            icon: <HelpCircle className="h-4 w-4 text-amber-600" />,
+            icon: <HelpCircle className="h-4 w-4 text-amber-700" aria-hidden="true" />,
             title: "বকেয়া বা আয় জানা",
-            say: "“এই মাসে কত ভাড়া বাকি আছে?”"
+            prompt: "এই মাসে কত ভাড়া বাকি আছে?"
           },
           {
-            icon: <Receipt className="h-4 w-4 text-rose-600" />,
+            icon: <Receipt className="h-4 w-4 text-rose-700" aria-hidden="true" />,
             title: "বাড়ির খরচ লেখা",
-            say: "“পানির পাম্প মেরামতে ১৫০০ টাকা খরচ হয়েছে”"
+            prompt: "পানির পাম্প মেরামতে ১৫০০ টাকা খরচ হয়েছে"
           },
           {
-            icon: <Wrench className="h-4 w-4 text-blue-600" />,
+            icon: <Wrench className="h-4 w-4 text-blue-700" aria-hidden="true" />,
             title: "মেরামতের অনুরোধ",
-            say: "“ফ্ল্যাট 3B এর রান্নাঘরের কল নষ্ট, জরুরি মেরামত লাগবে”"
+            prompt: "ফ্ল্যাট 3B এর রান্নাঘরের কল নষ্ট, জরুরি মেরামত লাগবে"
           },
           {
-            icon: <Send className="h-4 w-4 text-teal-600" />,
+            icon: <Send className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />,
             title: "তাগাদা SMS তৈরি",
-            say: "“ফ্ল্যাট 3B এর রহিম ভাইকে ভাড়ার রিমাইন্ডার পাঠাও”"
+            prompt: "ফ্ল্যাট 3B এর রহিম ভাইকে ভাড়ার রিমাইন্ডার পাঠাও"
           }
         ]
       : [
           {
-            icon: <Wallet className="h-4 w-4 text-emerald-600" />,
+            icon: <Wallet className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />,
             title: "Record Rent Payment",
-            say: "“Flat 3B Rahim paid 8000 taka via bKash”"
+            prompt: "Flat 3B Rahim paid 8000 taka via bKash"
           },
           {
-            icon: <HelpCircle className="h-4 w-4 text-amber-600" />,
+            icon: <HelpCircle className="h-4 w-4 text-amber-700" aria-hidden="true" />,
             title: "Check Dues & Totals",
-            say: "“How much rent is outstanding this month?”"
+            prompt: "How much rent is outstanding this month?"
           },
           {
-            icon: <Receipt className="h-4 w-4 text-rose-600" />,
+            icon: <Receipt className="h-4 w-4 text-rose-700" aria-hidden="true" />,
             title: "Log Property Expense",
-            say: "“Spent 1500 taka on water pump repair”"
+            prompt: "Spent 1500 taka on water pump repair"
           },
           {
-            icon: <Wrench className="h-4 w-4 text-blue-600" />,
+            icon: <Wrench className="h-4 w-4 text-blue-700" aria-hidden="true" />,
             title: "Log Maintenance Issue",
-            say: "“Flat 3B kitchen tap is leaking, urgent repair”"
+            prompt: "Flat 3B kitchen tap is leaking, urgent repair"
           },
           {
-            icon: <Send className="h-4 w-4 text-teal-600" />,
+            icon: <Send className="h-4 w-4 text-[#046c4e]" aria-hidden="true" />,
             title: "Prepare Rent Reminder",
-            say: "“Send rent reminder SMS to Flat 3B Rahim”"
+            prompt: "Send rent reminder SMS to Flat 3B Rahim"
           }
         ];
 
+  function tryExample(prompt: string) {
+    setCommand((prev) => ({ text: prompt, seq: (prev?.seq ?? 0) + 1 }));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <div className="space-y-5">
-      <HeroVoiceLauncher accessToken={accessToken} locale={locale} onToast={onToast} />
+      <HeroVoiceLauncher
+        accessToken={accessToken}
+        locale={locale}
+        variant="studio"
+        externalCommand={command}
+        onToast={onToast}
+      />
 
-      <section className="animate-fade-up rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-        <h3 className="text-sm font-bold text-slate-900">
-          {locale === "bn" ? "কীভাবে কথা বলবেন? (নমুনা)" : "What You Can Say (Examples)"}
-        </h3>
-        <p className="mt-0.5 text-xs text-slate-500">
-          {locale === "bn"
-            ? "স্বাভাবিক বাংলায় বা বাংলিশে বলুন — প্রতিবার সেভ করার আগে আপনাকে যাচাই করার সুযোগ দেওয়া হবে।"
-            : "Speak naturally in Bangla or English — you always review and confirm before anything is saved."}
-        </p>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {examples.map((ex) => (
-            <div
-              key={ex.title}
-              className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 transition hover:border-emerald-200 hover:bg-emerald-50/30"
-            >
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white shadow-2xs">
-                  {ex.icon}
-                </span>
-                {ex.title}
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-slate-600">{ex.say}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <Card>
+        <CardHeader
+          title={locale === "bn" ? "কীভাবে কথা বলবেন? (ক্লিক করে পরীক্ষা করুন)" : "Command Examples (Click to Try)"}
+          subtitle={
+            locale === "bn"
+              ? "স্বাভাবিক বাংলায় বা ইংরেজিতে বলুন — যেকোনো নমুনায় ট্যাপ করলে সরাসরি খসড়া তৈরি হবে।"
+              : "Speak naturally in Bangla or English — click any example below to test the verification flow."
+          }
+        />
+        <CardBody>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {examples.map((ex) => (
+              <button
+                key={ex.title}
+                type="button"
+                onClick={() => tryExample(ex.prompt)}
+                className="group flex cursor-pointer flex-col justify-between rounded-xl border border-[var(--border-default)] bg-[var(--bg-rail)] p-3.5 text-left transition-all duration-150 hover:border-[#a7f3d0] hover:bg-[#ecfdf5]/60 active:scale-[0.99]"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[var(--ink-primary)]">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-white">
+                        {ex.icon}
+                      </span>
+                      <span>{ex.title}</span>
+                    </div>
+                    <ArrowUpRight
+                      className="h-3.5 w-3.5 text-[var(--ink-muted)] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#046c4e]"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <p className="mt-2.5 text-xs leading-relaxed text-[var(--ink-secondary)]">
+                    “{ex.prompt}”
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </CardBody>
+      </Card>
     </div>
   );
 }

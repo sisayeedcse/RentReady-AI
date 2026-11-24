@@ -1,30 +1,92 @@
 @import "tailwindcss";
 
+:root {
+  /* Architectural neutral surfaces */
+  --bg-canvas: #f5f6f4;
+  --bg-rail: #fafbf9;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f0f2ef;
+  --bg-hover: #f4f6f3;
+
+  /* Ink & typography colors (WCAG 2.2 AA >= 4.5:1 on white) */
+  --ink-primary: #111816;
+  --ink-secondary: #43504c;
+  --ink-muted: #5e6c67;
+
+  /* Hairline borders */
+  --border-subtle: #ebeeea;
+  --border-default: #dde2dd;
+  --border-strong: #c6cec9;
+
+  /* Brand & semantic accents */
+  --brand-primary: #046c4e;
+  --brand-primary-hover: #03543f;
+  --brand-soft: #ecfdf5;
+  --brand-border: #a7f3d0;
+
+  /* Shadows */
+  --shadow-card: 0 1px 2px rgba(17, 24, 22, 0.04);
+  --shadow-elevated: 0 14px 34px -10px rgba(17, 24, 22, 0.16), 0 2px 8px -2px rgba(17, 24, 22, 0.06);
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
     -webkit-tap-highlight-color: transparent;
   }
+
   body {
-    font-family: "Hind Siliguri", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    font-family: "Plus Jakarta Sans", "Hind Siliguri", system-ui, -apple-system, sans-serif;
     overscroll-behavior-y: none;
-    background-color: #f8fafc;
+    background-color: var(--bg-canvas);
+    color: var(--ink-primary);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+
+  html[lang="bn"] body {
+    font-family: "Hind Siliguri", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  }
+
   a:focus-visible,
   button:focus-visible,
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible,
   [tabindex]:focus-visible {
-    outline: 2px solid #059669;
+    outline: 2px solid #046c4e;
     outline-offset: 2px;
   }
 }
 
-@keyframes fadeUp {
+.tabular-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.surface-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-card);
+}
+
+.surface-elevated {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Subtle architectural grid for auth showcase panel */
+.bg-ledger-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -35,7 +97,7 @@
 @keyframes scaleIn {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.98);
   }
   to {
     opacity: 1;
@@ -46,7 +108,7 @@
 @keyframes sheetUp {
   from {
     opacity: 0;
-    transform: translateY(28px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -57,14 +119,14 @@
 @keyframes micRipple {
   0% {
     transform: scale(0.95);
-    opacity: 0.65;
+    opacity: 0.55;
   }
-  70% {
-    transform: scale(1.48);
+  75% {
+    transform: scale(1.5);
     opacity: 0;
   }
   100% {
-    transform: scale(1.48);
+    transform: scale(1.5);
     opacity: 0;
   }
 }
@@ -72,7 +134,7 @@
 @keyframes waveBar {
   0%,
   100% {
-    transform: scaleY(0.3);
+    transform: scaleY(0.32);
   }
   50% {
     transform: scaleY(1);
@@ -80,36 +142,36 @@
 }
 
 .animate-fade-up {
-  animation: fadeUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: fadeIn 0.2s cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .animate-scale-in {
-  animation: scaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: scaleIn 0.18s cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .animate-sheet-up {
-  animation: sheetUp 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: sheetUp 0.22s cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .animate-mic-ripple {
-  animation: micRipple 2.1s cubic-bezier(0, 0, 0.2, 1) infinite;
+  animation: micRipple 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
 .animate-mic-ripple-delayed {
-  animation: micRipple 2.1s cubic-bezier(0, 0, 0.2, 1) 0.75s infinite;
+  animation: micRipple 1.8s cubic-bezier(0, 0, 0.2, 1) 0.65s infinite;
 }
 
 .animate-wave-1 {
-  animation: waveBar 0.65s ease-in-out infinite;
+  animation: waveBar 0.6s ease-in-out infinite;
 }
 .animate-wave-2 {
-  animation: waveBar 0.65s ease-in-out 0.14s infinite;
+  animation: waveBar 0.6s ease-in-out 0.12s infinite;
 }
 .animate-wave-3 {
-  animation: waveBar 0.65s ease-in-out 0.28s infinite;
+  animation: waveBar 0.6s ease-in-out 0.24s infinite;
 }
 .animate-wave-4 {
-  animation: waveBar 0.65s ease-in-out 0.42s infinite;
+  animation: waveBar 0.6s ease-in-out 0.36s infinite;
 }
 
 .pb-safe {
