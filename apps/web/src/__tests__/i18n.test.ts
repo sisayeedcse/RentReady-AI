@@ -28,5 +28,7 @@ describe("Customer-friendly error translator", () => {
       "copy the text"
     );
     expect(toFriendlyError(new Error("Invalid login credentials"), "bn")).toContain("পাসওয়ার্ড");
+    expect(toFriendlyError(new Error("Unsupported audio format"), "en")).toContain("Unsupported");
+    expect(toFriendlyError(new Error("Too many requests"), "bn")).toContain("কিছুক্ষণ পর");
   });
 });

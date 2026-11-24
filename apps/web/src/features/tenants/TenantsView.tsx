@@ -1,4 +1,4 @@
-import { bdtToPaisa, formatBdt } from "@rentready/shared";
+import { bdtToPaisa, formatBdt, getDhakaDateString, paisaToBdtString } from "@rentready/shared";
 import { Phone, Plus, Search, UserCheck, Users, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
@@ -100,7 +100,7 @@ export function TenantsView({
         body: JSON.stringify({
           unit_id: unitId,
           tenant_id: tenantId,
-          start_date: new Date().toISOString().slice(0, 10),
+          start_date: getDhakaDateString(),
           monthly_rent_paisa: bdtToPaisa(monthlyRentBdt),
           rent_due_day: 5
         })
@@ -162,7 +162,7 @@ export function TenantsView({
       </div>
 
       {error && (
-        <div className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+        <div role="alert" className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
           {error}
         </div>
       )}
@@ -174,16 +174,22 @@ export function TenantsView({
         >
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-              <Users className="h-4 w-4 text-emerald-600" />
+              <Users className="h-4 w-4 text-emerald-600" aria-hidden="true" />
               {locale === "bn" ? "নতুন ভাড়াটিয়ার তথ্য" : "New Tenant Profile"}
             </h3>
-            <button type="button" onClick={() => setOpenForm("none")} className="text-slate-400">
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => setOpenForm("none")}
+              aria-label={locale === "bn" ? "ফর্ম বন্ধ করুন" : "Close form"}
+              className="rounded-lg p-1 text-slate-600 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               required
+              aria-label={locale === "bn" ? "ভাড়াটিয়ার পূর্ণ নাম" : "Tenant full name"}
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder={locale === "bn" ? "ভাড়াটিয়ার নাম (যেমন: রহিম উদ্দিন)" : "Tenant full name"}
@@ -191,6 +197,8 @@ export function TenantsView({
             />
             <input
               required
+              type="tel"
+              aria-label={locale === "bn" ? "ভাড়াটিয়ার মোবাইল নম্বর" : "Tenant mobile number"}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder={locale === "bn" ? "মোবাইল নম্বর (যেমন: 019XXXXXXXX)" : "Mobile number (e.g. 019XXXXXXXX)"}
@@ -226,18 +234,24 @@ export function TenantsView({
               <UserCheck className="h-4 w-4 text-emerald-600" />
               {locale === "bn" ? "খালি ফ্ল্যাটে ভাড়াটিয়া বরাদ্দ করুন" : "Assign Tenant to Vacant Unit"}
             </h3>
-            <button type="button" onClick={() => setOpenForm("none")} className="text-slate-400">
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => setOpenForm("none")}
+              aria-label={locale === "bn" ? "ফর্ম বন্ধ করুন" : "Close form"}
+              className="rounded-lg p-1 text-slate-600 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <select
               required
+              aria-label={locale === "bn" ? "খালি ফ্ল্যাট বাছাই করুন" : "Select vacant unit"}
               value={unitId}
               onChange={(e) => {
                 setUnitId(e.target.value);
                 const found = units.find((u) => u.id === e.target.value);
-                if (found) setMonthlyRentBdt(String(found.default_rent_paisa / 100));
+                if (found) setMonthlyRentBdt(paisaToBdtString(found.default_rent_paisa));
               }}
               className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
             >
@@ -252,6 +266,7 @@ export function TenantsView({
             </select>
             <select
               required
+              aria-label={locale === "bn" ? "ভাড়াটিয়া বাছাই করুন" : "Select tenant"}
               value={tenantId}
               onChange={(e) => setTenantId(e.target.value)}
               className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
@@ -265,8 +280,10 @@ export function TenantsView({
             </select>
             <input
               required
+              aria-label={locale === "bn" ? "মাসিক ভাড়া (টাকা)" : "Monthly rent (BDT)"}
               type="number"
               min="1"
+              step="0.01"
               value={monthlyRentBdt}
               onChange={(e) => setMonthlyRentBdt(e.target.value)}
               placeholder={locale === "bn" ? "মাসিক ভাড়া (টাকা)" : "Monthly Rent (BDT)"}
@@ -294,9 +311,10 @@ export function TenantsView({
 
       {/* Search Bar */}
       <div className="relative">
-        <Search className="pointer-events-none absolute top-3 left-3.5 h-4 w-4 text-slate-400" />
+        <Search className="pointer-events-none absolute top-3 left-3.5 h-4 w-4 text-slate-500" aria-hidden="true" />
         <input
-          type="text"
+          type="search"
+          aria-label={locale === "bn" ? "ভাড়াটিয়া খুঁজুন" : "Search tenants"}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={

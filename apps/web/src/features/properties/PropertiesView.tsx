@@ -149,7 +149,7 @@ export function PropertiesView({
       </div>
 
       {error && (
-        <div className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+        <div role="alert" className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
           {error}
         </div>
       )}
@@ -162,16 +162,22 @@ export function PropertiesView({
         >
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-              <Building2 className="h-4 w-4 text-emerald-600" />
+              <Building2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
               {locale === "bn" ? "নতুন বাড়ির তথ্য দিন" : "New Property Details"}
             </h3>
-            <button type="button" onClick={() => setOpenForm("none")} className="text-slate-400">
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => setOpenForm("none")}
+              aria-label={locale === "bn" ? "ফর্ম বন্ধ করুন" : "Close form"}
+              className="rounded-lg p-1 text-slate-600 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               required
+              aria-label={locale === "bn" ? "বাড়ির নাম" : "Property name"}
               value={propName}
               onChange={(e) => setPropName(e.target.value)}
               placeholder={locale === "bn" ? "বাড়ির নাম (যেমন: শান্তি নিবাস)" : "Property name (e.g. Shanti Nibash)"}
@@ -179,6 +185,7 @@ export function PropertiesView({
             />
             <input
               required
+              aria-label={locale === "bn" ? "বাড়ির ঠিকানা" : "Property address"}
               value={propAddress}
               onChange={(e) => setPropAddress(e.target.value)}
               placeholder={locale === "bn" ? "ঠিকানা (যেমন: ধানমন্ডি ৯/এ, ঢাকা)" : "Address (e.g. Dhanmondi 9/A, Dhaka)"}
@@ -215,13 +222,19 @@ export function PropertiesView({
               <Home className="h-4 w-4 text-emerald-600" />
               {locale === "bn" ? "নতুন ফ্ল্যাট / ইউনিট যোগ করুন" : "Add New Unit / Flat"}
             </h3>
-            <button type="button" onClick={() => setOpenForm("none")} className="text-slate-400">
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => setOpenForm("none")}
+              aria-label={locale === "bn" ? "ফর্ম বন্ধ করুন" : "Close form"}
+              className="rounded-lg p-1 text-slate-600 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <select
               required
+              aria-label={locale === "bn" ? "বাড়ি নির্বাচন করুন" : "Select property"}
               value={selectedPropId}
               onChange={(e) => setSelectedPropId(e.target.value)}
               className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
@@ -235,12 +248,14 @@ export function PropertiesView({
             </select>
             <input
               required
+              aria-label={locale === "bn" ? "ফ্ল্যাট নম্বর" : "Unit code"}
               value={unitCode}
               onChange={(e) => setUnitCode(e.target.value)}
               placeholder={locale === "bn" ? "ফ্ল্যাট নং (যেমন: 3B)" : "Unit code (e.g. 3B)"}
               className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
             />
             <input
+              aria-label={locale === "bn" ? "তলা (ঐচ্ছিক)" : "Floor label (optional)"}
               value={floorLabel}
               onChange={(e) => setFloorLabel(e.target.value)}
               placeholder={locale === "bn" ? "তলা (যেমন: ৩য় তলা)" : "Floor (optional)"}
@@ -248,8 +263,10 @@ export function PropertiesView({
             />
             <input
               required
+              aria-label={locale === "bn" ? "মাসিক ভাড়া (টাকা)" : "Monthly rent (BDT)"}
               type="number"
               min="1"
+              step="0.01"
               value={unitRentBdt}
               onChange={(e) => setUnitRentBdt(e.target.value)}
               placeholder={locale === "bn" ? "মাসিক ভাড়া (টাকা)" : "Monthly Rent (BDT)"}

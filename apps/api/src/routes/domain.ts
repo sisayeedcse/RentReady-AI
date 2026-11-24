@@ -5,15 +5,22 @@ import {
   CreateTenancySchema,
   CreateTenantSchema,
   CreateUnitSchema,
+  GenerateObligationsSchema,
   isBanglalinkPrefix,
   normalizeBdPhone,
   RecordPaymentRequestSchema,
   ReversePaymentRequestSchema,
-  SendSmsRequestSchema
+  SendSmsRequestSchema,
+  UuidSchema
 } from "@rentready/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { EnvBindings } from "../app.js";
+import {
+  createRateLimiter,
+  logSecurityEvent,
+  mapSafeDbError
+} from "../lib/security.js";
 import {
   type AuthVariables,
   getCurrentDhakaBillingMonth,
@@ -21,9 +28,22 @@ import {
 } from "../lib/supabase.js";
 import { dispatchApplinkSmsViaRelay } from "../modules/notifications/applink.js";
 
-export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: AuthVariables }> {
+export interface DomainRouteOptions {
+  smsRateLimitMax?: number;
+}
+
+export function createDomainRoutes(
+  options: DomainRouteOptions = {}
+): Hono<{ Bindings: EnvBindings; Variables: AuthVariables }> {
   const r = new Hono<{ Bindings: EnvBindings; Variables: AuthVariables }>();
   r.use("*", requireAuth);
+
+  const smsRateLimiter = createRateLimiter({
+    bucketName: "sms_send",
+    maxRequests: options.smsRateLimitMax ?? 20,
+    windowMs: 15 * 60_000,
+    keyBy: "user_or_ip"
+  });
 
   // 1. Dashboard Summary (100% DB-computed)
   r.get("/dashboard", async (c) => {
@@ -50,7 +70,10 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
         .limit(10)
     ]);
 
-    if (summaryRes.error) return c.json({ error: summaryRes.error.message }, 500);
+    if (summaryRes.error) {
+      const mapped = mapSafeDbError(summaryRes.error, "dashboard_summary", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
 
     return c.json({
       summary: summaryRes.data,
@@ -67,13 +90,18 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .select("*, buildings(id, name)")
       .eq("is_archived", false)
       .order("created_at", { ascending: false });
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_properties", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
   r.post("/properties", async (c) => {
     const parsed = CreatePropertySchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Invalid property payload", details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid property payload", details: z.flattenError(parsed.error) }, 400);
+    }
 
     const supabase = c.var.supabase;
     const { data: prop, error } = await supabase
@@ -81,7 +109,10 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .insert({ ...parsed.data, landlord_id: c.var.userId })
       .select()
       .single();
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "create_property", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
 
     // Auto-create default "Main Building" for streamlined MVP UX
     const { data: bldg } = await supabase
@@ -96,6 +127,10 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
   // 3. Units
   r.get("/units", async (c) => {
     const propertyId = c.req.query("property_id");
+    if (propertyId !== undefined && !UuidSchema.safeParse(propertyId).success) {
+      return c.json({ error: "Invalid property_id query parameter" }, 400);
+    }
+
     let query = c.var.supabase
       .from("units")
       .select("*, properties(name)")
@@ -103,15 +138,30 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
     if (propertyId) query = query.eq("property_id", propertyId);
 
     const { data, error } = await query;
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_units", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
   r.post("/units", async (c) => {
     const parsed = CreateUnitSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Invalid unit payload", details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid unit payload", details: z.flattenError(parsed.error) }, 400);
+    }
 
     const supabase = c.var.supabase;
+    // Explicitly verify caller owns the target property
+    const { data: ownedProp } = await supabase
+      .from("properties")
+      .select("id")
+      .eq("id", parsed.data.property_id)
+      .maybeSingle();
+    if (!ownedProp) {
+      return c.json({ error: "Property not found or access denied" }, 404);
+    }
+
     const { data: bldg } = await supabase
       .from("buildings")
       .select("id")
@@ -126,7 +176,10 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
         .insert({ landlord_id: c.var.userId, property_id: parsed.data.property_id, name: "Main Building" })
         .select("id")
         .single();
-      if (bErr) return c.json({ error: bErr.message }, 400);
+      if (bErr) {
+        const mapped = mapSafeDbError(bErr, "create_default_building", c.var.requestId);
+        return c.json({ error: mapped.message }, mapped.status);
+      }
       buildingId = createdBldg.id;
     }
 
@@ -144,7 +197,10 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .select()
       .single();
 
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "create_unit", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data }, 201);
   });
 
@@ -154,7 +210,10 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .from("tenants")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_tenants", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({
       data: (data ?? []).map((t) => ({
         ...t,
@@ -165,13 +224,15 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
 
   r.post("/tenants", async (c) => {
     const parsed = CreateTenantSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Invalid tenant payload", details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid tenant payload", details: z.flattenError(parsed.error) }, 400);
+    }
 
     let phoneE164: string;
     try {
       phoneE164 = normalizeBdPhone(parsed.data.phone);
-    } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : "Invalid Bangladesh phone" }, 400);
+    } catch {
+      return c.json({ error: "Invalid Bangladesh mobile number (expected 01XXXXXXXXX or +8801XXXXXXXXX)" }, 400);
     }
 
     const { data, error } = await c.var.supabase
@@ -185,7 +246,10 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       })
       .select()
       .single();
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "create_tenant", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data: { ...data, is_banglalink: isBanglalinkPrefix(phoneE164) } }, 201);
   });
 
@@ -195,21 +259,38 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .from("tenancies")
       .select("*, tenants(full_name, phone_e164), units(unit_code, property_id, properties(name))")
       .order("created_at", { ascending: false });
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_tenancies", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
   r.post("/tenancies", async (c) => {
     const parsed = CreateTenancySchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Invalid tenancy payload", details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid tenancy payload", details: z.flattenError(parsed.error) }, 400);
+    }
 
     const supabase = c.var.supabase;
+    // Verify caller owns both unit and tenant
+    const [unitRes, tenantRes] = await Promise.all([
+      supabase.from("units").select("id").eq("id", parsed.data.unit_id).maybeSingle(),
+      supabase.from("tenants").select("id").eq("id", parsed.data.tenant_id).maybeSingle()
+    ]);
+    if (!unitRes.data || !tenantRes.data) {
+      return c.json({ error: "Unit or tenant not found or access denied" }, 404);
+    }
+
     const { data, error } = await supabase
       .from("tenancies")
       .insert({ ...parsed.data, landlord_id: c.var.userId, status: "active" })
       .select()
       .single();
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "create_tenancy", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
 
     await supabase.from("units").update({ status: "occupied" }).eq("id", parsed.data.unit_id);
     return c.json({ data }, 201);
@@ -221,20 +302,31 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .from("v_obligation_balances")
       .select("*")
       .order("billing_month", { ascending: false });
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_obligations", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
   r.post("/obligations/generate", async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { billing_month?: string };
-    const billingMonth = body.billing_month
-      ? `${body.billing_month.slice(0, 7)}-01`
+    const rawBody = await c.req.json().catch(() => ({}));
+    const parsed = GenerateObligationsSchema.safeParse(rawBody ?? {});
+    if (!parsed.success) {
+      return c.json({ error: "Invalid billing_month format (expected YYYY-MM)", details: z.flattenError(parsed.error) }, 400);
+    }
+
+    const billingMonth = parsed.data.billing_month
+      ? `${parsed.data.billing_month.slice(0, 7)}-01`
       : getCurrentDhakaBillingMonth();
 
     const { data, error } = await c.var.supabase.rpc("generate_monthly_obligations", {
       p_billing_month: billingMonth
     });
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "generate_obligations", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ billing_month: billingMonth, generated_count: data });
   });
 
@@ -245,13 +337,18 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .select("*, tenants(full_name, phone_e164), tenancies(units(unit_code))")
       .order("paid_at", { ascending: false })
       .limit(100);
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_payments", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
   r.post("/payments", async (c) => {
     const parsed = RecordPaymentRequestSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Invalid payment payload", details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid payment payload", details: z.flattenError(parsed.error) }, 400);
+    }
 
     const { data, error } = await c.var.supabase.rpc("record_payment_atomic", {
       p_tenancy_id: parsed.data.tenancy_id,
@@ -263,21 +360,33 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       p_notes: parsed.data.notes ?? null,
       p_source: "ui"
     });
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "record_payment", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data }, 201);
   });
 
   r.post("/payments/:id/reverse", async (c) => {
-    const paymentId = c.req.param("id");
+    const paymentIdParsed = UuidSchema.safeParse(c.req.param("id"));
+    if (!paymentIdParsed.success) {
+      return c.json({ error: "Invalid payment ID" }, 400);
+    }
+
     const parsed = ReversePaymentRequestSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Invalid reversal payload", details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid reversal payload", details: z.flattenError(parsed.error) }, 400);
+    }
 
     const { data, error } = await c.var.supabase.rpc("reverse_payment_atomic", {
-      p_payment_id: paymentId,
+      p_payment_id: paymentIdParsed.data,
       p_reason: parsed.data.reason,
       p_idempotency_key: parsed.data.idempotency_key
     });
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "reverse_payment", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data }, 201);
   });
 
@@ -288,13 +397,18 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .select("*, properties(name), units(unit_code)")
       .eq("is_void", false)
       .order("incurred_on", { ascending: false });
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_expenses", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
   r.post("/expenses", async (c) => {
     const parsed = CreateExpenseRequestSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Invalid expense payload", details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid expense payload", details: z.flattenError(parsed.error) }, 400);
+    }
 
     const supabase = c.var.supabase;
     const { data: existing } = await supabase
@@ -304,12 +418,32 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .maybeSingle();
     if (existing) return c.json({ data: existing, idempotent_replay: true }, 200);
 
+    const { data: ownedProp } = await supabase
+      .from("properties")
+      .select("id")
+      .eq("id", parsed.data.property_id)
+      .maybeSingle();
+    if (!ownedProp) {
+      return c.json({ error: "Property not found or access denied" }, 404);
+    }
+
     const { data, error } = await supabase
       .from("expenses")
       .insert({ ...parsed.data, landlord_id: c.var.userId })
       .select()
       .single();
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      if (error.code === "23505") {
+        const { data: replayRow } = await supabase
+          .from("expenses")
+          .select("*")
+          .eq("idempotency_key", parsed.data.idempotency_key)
+          .maybeSingle();
+        if (replayRow) return c.json({ data: replayRow, idempotent_replay: true }, 200);
+      }
+      const mapped = mapSafeDbError(error, "create_expense", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
 
     await supabase.from("audit_logs").insert({
       landlord_id: c.var.userId,
@@ -330,24 +464,46 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .from("maintenance_requests")
       .select("*, properties(name), units(unit_code), tenants(full_name)")
       .order("created_at", { ascending: false });
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_maintenance", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
   r.post("/maintenance", async (c) => {
     const parsed = CreateMaintenanceSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Invalid maintenance payload", details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid maintenance payload", details: z.flattenError(parsed.error) }, 400);
+    }
+
+    const { data: ownedProp } = await c.var.supabase
+      .from("properties")
+      .select("id")
+      .eq("id", parsed.data.property_id)
+      .maybeSingle();
+    if (!ownedProp) {
+      return c.json({ error: "Property not found or access denied" }, 404);
+    }
 
     const { data, error } = await c.var.supabase
       .from("maintenance_requests")
       .insert({ ...parsed.data, landlord_id: c.var.userId })
       .select()
       .single();
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "create_maintenance", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data }, 201);
   });
 
   r.patch("/maintenance/:id", async (c) => {
+    const idParsed = UuidSchema.safeParse(c.req.param("id"));
+    if (!idParsed.success) {
+      return c.json({ error: "Invalid maintenance request ID" }, 400);
+    }
+
     const body = z
       .object({ status: z.enum(["open", "in_progress", "resolved", "closed"]) })
       .safeParse(await c.req.json().catch(() => null));
@@ -359,10 +515,13 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
         status: body.data.status,
         resolved_at: body.data.status === "resolved" ? new Date().toISOString() : null
       })
-      .eq("id", c.req.param("id"))
+      .eq("id", idParsed.data)
       .select()
       .single();
-    if (error) return c.json({ error: error.message }, 400);
+    if (error) {
+      const mapped = mapSafeDbError(error, "update_maintenance", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
@@ -373,14 +532,20 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .select("*, tenants(full_name), notification_logs(*)")
       .order("created_at", { ascending: false })
       .limit(50);
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_notifications", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 
-  r.post("/notifications/send", async (c) => {
+  r.post("/notifications/send", smsRateLimiter, async (c) => {
     const parsed = SendSmsRequestSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) {
-      return c.json({ error: "SMS requires confirmed: true and valid idempotency_key", details: parsed.error.flatten() }, 400);
+      return c.json(
+        { error: "SMS requires confirmed: true and valid idempotency_key", details: z.flattenError(parsed.error) },
+        400
+      );
     }
 
     const relayUrl = c.env.APPLINK_RELAY_URL;
@@ -420,13 +585,25 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       })
       .select()
       .single();
-    if (nErr) return c.json({ error: nErr.message }, 400);
+    if (nErr) {
+      if (nErr.code === "23505") {
+        const { data: replayRow } = await supabase
+          .from("notifications")
+          .select("*, notification_logs(*)")
+          .eq("idempotency_key", parsed.data.idempotency_key)
+          .maybeSingle();
+        if (replayRow) return c.json({ data: replayRow, idempotent_replay: true }, 200);
+      }
+      const mapped = mapSafeDbError(nErr, "queue_notification", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
 
     const relayRes = await dispatchApplinkSmsViaRelay({
       relayUrl,
       sharedSecret: relaySecret,
       phoneE164: tenant.phone_e164,
-      message: parsed.data.message_body
+      message: parsed.data.message_body,
+      allowInsecureHttpRelay: c.env.ALLOW_INSECURE_LOCAL_RELAY === "true"
     });
 
     const finalStatus = relayRes.ok ? "sent" : "failed";
@@ -446,6 +623,28 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .select()
       .single();
 
+    await supabase.from("audit_logs").insert({
+      landlord_id: c.var.userId,
+      actor_user_id: c.var.userId,
+      entity_type: "notification",
+      entity_id: notif.id,
+      action: "send_sms",
+      source: "ui",
+      after_data: {
+        template_type: parsed.data.template_type,
+        status: finalStatus,
+        provider_status_code: relayRes.statusCode,
+        request_id: relayRes.requestId
+      }
+    });
+
+    logSecurityEvent(relayRes.ok ? "info" : "warn", "sms_dispatch_completed", {
+      request_id: c.var.requestId,
+      notification_id: notif.id,
+      status_code: relayRes.statusCode,
+      ok: relayRes.ok
+    });
+
     return c.json(
       {
         ok: relayRes.ok,
@@ -464,7 +663,10 @@ export function createDomainRoutes(): Hono<{ Bindings: EnvBindings; Variables: A
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
-    if (error) return c.json({ error: error.message }, 500);
+    if (error) {
+      const mapped = mapSafeDbError(error, "list_audit_logs", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
     return c.json({ data });
   });
 

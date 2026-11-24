@@ -3,5 +3,8 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 GEMINI_API_KEY=AIzaSy-your-google-ai-studio-key
 GEMINI_MODEL=gemini-3.5-flash-lite
+# Use https://relay.yourdomain.com in production (HTTP is only permitted for localhost/127.0.0.1)
 APPLINK_RELAY_URL=http://127.0.0.1:8788
 RELAY_SHARED_SECRET=replace-with-32-byte-random-hex
+# Optional comma-separated list of explicitly trusted CORS origins (same-origin works automatically)
+ALLOWED_ORIGINS=http://localhost:5173

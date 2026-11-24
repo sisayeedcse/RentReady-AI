@@ -124,7 +124,7 @@ export function MaintenanceView({
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
           {error}
         </div>
       )}
@@ -136,16 +136,22 @@ export function MaintenanceView({
         >
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-              <Wrench className="h-4 w-4 text-emerald-600" />
+              <Wrench className="h-4 w-4 text-emerald-600" aria-hidden="true" />
               {locale === "bn" ? "নতুন মেরামতের বিবরণ" : "New Maintenance Request"}
             </h3>
-            <button type="button" onClick={() => setShowForm(false)} className="text-slate-400">
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              aria-label={locale === "bn" ? "ফর্ম বন্ধ করুন" : "Close form"}
+              className="rounded-lg p-1 text-slate-600 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="grid gap-2.5 sm:grid-cols-2">
             <select
               required
+              aria-label={locale === "bn" ? "বাড়ি নির্বাচন করুন" : "Select property"}
               value={propertyId}
               onChange={(e) => setPropertyId(e.target.value)}
               className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
@@ -157,6 +163,7 @@ export function MaintenanceView({
               ))}
             </select>
             <select
+              aria-label={locale === "bn" ? "অগ্রাধিকার নির্বাচন করুন" : "Select priority"}
               value={priority}
               onChange={(e) => setPriority(e.target.value as typeof priority)}
               className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
@@ -169,6 +176,7 @@ export function MaintenanceView({
           </div>
           <input
             required
+            aria-label={locale === "bn" ? "সমস্যার শিরোনাম" : "Issue title"}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={locale === "bn" ? "সমস্যার শিরোনাম (যেমন: পানির কল লিক)" : "Issue title (e.g. Water tap leaking)"}
@@ -176,6 +184,7 @@ export function MaintenanceView({
           />
           <textarea
             required
+            aria-label={locale === "bn" ? "সমস্যার বিস্তারিত বিবরণ" : "Issue description"}
             rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}

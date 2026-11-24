@@ -1,6 +1,6 @@
 import { isBanglalinkPrefix } from "@rentready/shared";
 import { AlertTriangle, CheckCircle2, Copy, MessageCircle, Send, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch, generateIdempotencyKey } from "../../lib/api";
 import { toFriendlyError } from "../../lib/friendlyError";
 import { type Locale, t } from "../../lib/i18n";
@@ -43,6 +43,14 @@ export function SmsModal({
       return false;
     }
   })();
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   const whatsappUrl = `https://wa.me/${draft.phoneE164.replace("+", "")}?text=${encodeURIComponent(message)}`;
 
@@ -106,6 +114,9 @@ export function SmsModal({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sms-modal-title"
         className="animate-sheet-up w-full max-w-lg rounded-t-3xl border border-slate-200 bg-white p-5 pb-8 shadow-2xl sm:rounded-3xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
@@ -113,7 +124,7 @@ export function SmsModal({
 
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="text-base font-extrabold text-slate-900">
+            <h3 id="sms-modal-title" className="text-base font-extrabold text-slate-900">
               {draft.templateType === "payment_receipt"
                 ? locale === "bn"
                   ? "SMS পেমেন্ট রসিদ পাঠান"
@@ -122,16 +133,17 @@ export function SmsModal({
                   ? "ভাড়ার তাগাদা SMS পাঠান"
                   : "Send Rent Reminder SMS"}
             </h3>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-slate-600">
               {draft.tenantName} • <span className="font-mono font-semibold">{draft.phoneE164}</span>
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
+            aria-label={locale === "bn" ? "বন্ধ করুন" : "Close dialog"}
+            className="rounded-xl bg-slate-100 p-1.5 text-slate-600 hover:bg-slate-200"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -156,11 +168,13 @@ export function SmsModal({
         </div>
 
         <div className="mt-4">
-          <label className="mb-1 block text-xs font-bold text-slate-700">
+          <label htmlFor="sms-message-input" className="mb-1 block text-xs font-bold text-slate-700">
             {locale === "bn" ? "বার্তা (প্রয়োজনে বদলে নিন)" : "Message (Editable)"}
           </label>
           <textarea
+            id="sms-message-input"
             rows={4}
+            maxLength={480}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             className="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
@@ -169,6 +183,7 @@ export function SmsModal({
 
         {result && (
           <div
+            role={result.ok ? "status" : "alert"}
             className={`animate-scale-in mt-4 rounded-2xl border p-3 text-xs ${
               result.ok
                 ? "border-emerald-300 bg-emerald-50 text-emerald-900"
@@ -189,7 +204,7 @@ export function SmsModal({
             <a
               href={whatsappUrl}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 active:scale-95"
             >
               <MessageCircle className="h-3.5 w-3.5" />

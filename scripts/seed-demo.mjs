@@ -5,9 +5,16 @@ import { resolve } from "node:path";
 const requireFromWeb = createRequire(resolve(process.cwd(), "apps/web/package.json"));
 const { createClient } = requireFromWeb("@supabase/supabase-js");
 
-const DEMO_EMAIL = "demo@rentready.app";
-const DEMO_PASSWORD = "RentReady@2026";
-const DEMO_NAME = "Md. Kamal Hossain (Demo Landlord)";
+const DEMO_EMAIL = process.env.SEED_DEMO_EMAIL?.trim();
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD;
+const DEMO_NAME = process.env.SEED_DEMO_NAME?.trim() || "Md. Kamal Hossain (Test Account)";
+
+if (!DEMO_EMAIL || !DEMO_PASSWORD || DEMO_PASSWORD.length < 8) {
+  console.error(
+    "Set SEED_DEMO_EMAIL and SEED_DEMO_PASSWORD (min 8 chars) environment variables before running seed:demo."
+  );
+  process.exit(1);
+}
 
 function parseEnvFile(filePath) {
   const out = {};
@@ -30,6 +37,14 @@ const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in apps/web/.env.local");
+  process.exit(1);
+}
+
+const isLocalSupabase = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(supabaseUrl);
+if (!isLocalSupabase && process.env.ALLOW_DEMO_SEED !== "true") {
+  console.error(
+    "Refusing to seed test data into a remote Supabase project without ALLOW_DEMO_SEED=true."
+  );
   process.exit(1);
 }
 

@@ -57,8 +57,13 @@ export function VoiceAnswerCard({
               {locale === "bn" ? "নির্দেশনাটি পরিষ্কারভাবে বোঝা যায়নি" : "Could not understand command"}
             </span>
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
-            <X className="h-4 w-4" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={locale === "bn" ? "বন্ধ করুন" : "Dismiss"}
+            className="rounded-lg p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-600">
@@ -105,8 +110,13 @@ export function VoiceAnswerCard({
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
-            <X className="h-4 w-4" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={locale === "bn" ? "বন্ধ করুন" : "Dismiss"}
+            className="rounded-lg p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -182,8 +192,13 @@ export function VoiceAnswerCard({
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
-            <X className="h-4 w-4" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={locale === "bn" ? "বন্ধ করুন" : "Dismiss"}
+            className="rounded-lg p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -246,8 +261,13 @@ export function VoiceAnswerCard({
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
-            <X className="h-4 w-4" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={locale === "bn" ? "বন্ধ করুন" : "Dismiss"}
+            className="rounded-lg p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 

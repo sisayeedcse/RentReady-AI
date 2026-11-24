@@ -1,4 +1,4 @@
-import { formatBdt } from "@rentready/shared";
+import { bdtToPaisa, formatBdt } from "@rentready/shared";
 import {
   AlertTriangle,
   Building2,
@@ -153,7 +153,14 @@ export function VoiceConfirmationCard({
   const isAmbiguous = result.status === "needs_clarification" && candidates.length > 0;
 
   const amountBdt = typeof payload.amount_bdt === "number" ? payload.amount_bdt : null;
-  const amountPaisa = amountBdt !== null ? Math.round(amountBdt * 100) : null;
+  const amountPaisa = (() => {
+    if (amountBdt === null) return null;
+    try {
+      return bdtToPaisa(amountBdt);
+    } catch {
+      return null;
+    }
+  })();
   const currentDue =
     typeof resolved.total_outstanding_paisa === "number" ? resolved.total_outstanding_paisa : null;
   const remainingAfter =
@@ -175,9 +182,10 @@ export function VoiceConfirmationCard({
         <button
           type="button"
           onClick={onReject}
-          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          aria-label={locale === "bn" ? "বাতিল ও বন্ধ করুন" : "Cancel and close"}
+          className="rounded-lg p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
@@ -362,11 +370,13 @@ export function VoiceConfirmationCard({
                 </div>
               )}
               <div className="pt-1">
-                <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                <label htmlFor="voice-sms-preview" className="mb-1 block text-[11px] font-semibold text-slate-600">
                   {locale === "bn" ? "SMS বার্তা (প্রয়োজনে বদলে নিন)" : "SMS Preview (Editable)"}
                 </label>
                 <textarea
+                  id="voice-sms-preview"
                   rows={3}
+                  maxLength={480}
                   value={editedSms}
                   onChange={(e) => onChangeSms(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-900"

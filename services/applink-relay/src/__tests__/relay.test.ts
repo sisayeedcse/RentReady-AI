@@ -164,4 +164,63 @@ describe("AppLink Fixed-IP Relay", () => {
     expect(json.statusCode).toBe("E1313");
     expect(json.errorCategory).toBe("auth_failed");
   });
+
+  it("rejects replayed signed requests within the 60s window with 401", async () => {
+    const mockFetch = makeMockFetch(200, {
+      statusCode: "S1000",
+      statusDetail: "Success",
+      requestId: "MSG_REPLAY_001"
+    });
+    const app = createRelayApp({
+      sharedSecret: TEST_SECRET,
+      applicationId: TEST_APP_ID,
+      password: TEST_PASSWORD,
+      fetchImpl: mockFetch,
+      nowMs: () => FIXED_NOW_MS
+    });
+
+    const rawBody = JSON.stringify({
+      message: "RentReady receipt",
+      destinationAddresses: ["tel:+8801959979376"]
+    });
+    const nonce = "nonce-12345678";
+    const sig = signRelayPayload(TEST_SECRET, FIXED_TS, rawBody, nonce);
+    const headers = {
+      "x-relay-timestamp": FIXED_TS,
+      "x-relay-nonce": nonce,
+      "x-relay-signature": sig
+    };
+
+    const first = await app.request("/relay/applink/sms/send", { method: "POST", headers, body: rawBody });
+    expect(first.status).toBe(200);
+    expect(first.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(first.headers.get("cache-control")).toBe("no-store");
+
+    const replay = await app.request("/relay/applink/sms/send", { method: "POST", headers, body: rawBody });
+    expect(replay.status).toBe(401);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects oversized payloads with 413 and enforces rate limiting with 429", async () => {
+    const mockFetch = makeMockFetch(200, { statusCode: "S1000", statusDetail: "Success", requestId: "R1" });
+    const app = createRelayApp({
+      sharedSecret: TEST_SECRET,
+      applicationId: TEST_APP_ID,
+      password: TEST_PASSWORD,
+      fetchImpl: mockFetch,
+      nowMs: () => FIXED_NOW_MS,
+      maxRequestsPerMinute: 2
+    });
+
+    const huge = "x".repeat(20_000);
+    const bigRes = await app.request("/relay/applink/sms/send", { method: "POST", body: huge });
+    expect(bigRes.status).toBe(413);
+
+    const res2 = await app.request("/relay/applink/sms/send", { method: "POST", body: "{}" });
+    expect(res2.status).toBe(401);
+
+    const limited = await app.request("/relay/applink/sms/send", { method: "POST", body: "{}" });
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("60");
+  });
 });

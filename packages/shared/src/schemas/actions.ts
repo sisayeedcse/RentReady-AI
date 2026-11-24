@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidIsoCalendarDate } from "../date.js";
 
 export const PaymentMethodSchema = z.enum(["cash", "bkash", "nagad", "bank", "other"]);
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
@@ -12,7 +13,8 @@ const BillingMonthSchema = z
 
 const IsoDateSchema = z
   .string()
-  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "date must be YYYY-MM-DD");
+  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "date must be YYYY-MM-DD")
+  .refine(isValidIsoCalendarDate, "Invalid calendar date");
 
 const PositiveBdtAmountSchema = z
   .number()

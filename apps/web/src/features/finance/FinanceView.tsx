@@ -1,4 +1,4 @@
-import { bdtToPaisa, formatBdt } from "@rentready/shared";
+import { bdtToPaisa, formatBdt, getDhakaDateString, paisaToBdtString } from "@rentready/shared";
 import { CalendarPlus, Plus, RotateCcw, Send, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch, generateIdempotencyKey } from "../../lib/api";
@@ -103,6 +103,18 @@ export function FinanceView({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!selectedObl && !reversingPayment) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setSelectedObl(null);
+        setReversingPayment(null);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedObl, reversingPayment]);
+
   async function generateBills() {
     setError(null);
     try {
@@ -202,7 +214,7 @@ export function FinanceView({
           property_id: expPropId,
           category_name: expCategory,
           amount_paisa: bdtToPaisa(expAmountBdt),
-          incurred_on: new Date().toISOString().slice(0, 10),
+          incurred_on: getDhakaDateString(),
           description: expDesc,
           idempotency_key: generateIdempotencyKey("exp")
         })
@@ -281,7 +293,7 @@ export function FinanceView({
       </div>
 
       {error && (
-        <div className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+        <div role="alert" className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
           {error}
         </div>
       )}
@@ -350,7 +362,14 @@ export function FinanceView({
                     </div>
 
                     {/* Visual Payment Progress Bar */}
-                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      role="progressbar"
+                      aria-valuenow={pct}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={locale === "bn" ? `${o.tenant_name} ভাড়া পরিশোধ ${pct}%` : `${o.tenant_name} rent paid ${pct}%`}
+                      className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100"
+                    >
                       <div
                         className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                         style={{ width: `${pct}%` }}
@@ -359,7 +378,7 @@ export function FinanceView({
 
                     <div className="mt-3 flex items-center justify-between">
                       <div className="text-xs">
-                        <span className="text-slate-500">
+                        <span className="text-slate-600">
                           {locale === "bn" ? "বাকি আছে: " : "Due: "}
                         </span>
                         <span
@@ -376,7 +395,7 @@ export function FinanceView({
                           type="button"
                           onClick={() => {
                             setSelectedObl(o);
-                            setPayAmountBdt(String(o.outstanding_paisa / 100));
+                            setPayAmountBdt(paisaToBdtString(o.outstanding_paisa));
                           }}
                           className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-emerald-700 active:scale-95"
                         >
@@ -429,6 +448,7 @@ export function FinanceView({
                       <button
                         type="button"
                         title={t(locale, "sendReceipt")}
+                        aria-label={`${t(locale, "sendReceipt")} — ${p.tenants.full_name}`}
                         onClick={() =>
                           onOpenSms({
                             tenantId: p.tenant_id,
@@ -443,20 +463,21 @@ export function FinanceView({
                         }
                         className="rounded-xl bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 active:scale-90"
                       >
-                        <Send className="h-3.5 w-3.5" />
+                        <Send className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                     )}
                     {!p.is_reversal && (
                       <button
                         type="button"
                         title={t(locale, "reversePayment")}
+                        aria-label={`${t(locale, "reversePayment")} — ${p.tenants?.full_name ?? ""}`}
                         onClick={() => {
                           setReversingPayment(p);
                           setReversalReason("");
                         }}
                         className="rounded-xl bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100 active:scale-90"
                       >
-                        <RotateCcw className="h-3.5 w-3.5" />
+                        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                     )}
                   </div>
@@ -480,6 +501,7 @@ export function FinanceView({
             <div className="grid gap-2.5 sm:grid-cols-2">
               <select
                 required
+                aria-label={locale === "bn" ? "বাড়ি নির্বাচন করুন" : "Select property"}
                 value={expPropId}
                 onChange={(e) => setExpPropId(e.target.value)}
                 className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
@@ -492,8 +514,10 @@ export function FinanceView({
               </select>
               <input
                 required
+                aria-label={locale === "bn" ? "টাকার পরিমাণ" : "Expense amount (BDT)"}
                 type="number"
                 min="1"
+                step="0.01"
                 value={expAmountBdt}
                 onChange={(e) => setExpAmountBdt(e.target.value)}
                 placeholder={locale === "bn" ? "টাকার পরিমাণ" : "Amount (BDT)"}
@@ -502,6 +526,7 @@ export function FinanceView({
             </div>
             <input
               required
+              aria-label={locale === "bn" ? "খরচের খাত" : "Expense category"}
               value={expCategory}
               onChange={(e) => setExpCategory(e.target.value)}
               placeholder={locale === "bn" ? "খরচের খাত" : "Category"}
@@ -509,6 +534,7 @@ export function FinanceView({
             />
             <input
               required
+              aria-label={locale === "bn" ? "খরচের বিবরণ" : "Expense description"}
               value={expDesc}
               onChange={(e) => setExpDesc(e.target.value)}
               placeholder={
@@ -562,6 +588,9 @@ export function FinanceView({
           onClick={() => setSelectedObl(null)}
         >
           <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-modal-title"
             onSubmit={submitPayment}
             onClick={(e) => e.stopPropagation()}
             className="animate-sheet-up w-full max-w-md rounded-t-3xl bg-white p-5 pb-8 shadow-2xl sm:rounded-3xl sm:p-6 space-y-4"
@@ -569,10 +598,10 @@ export function FinanceView({
             <div className="mx-auto h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">
+                <h3 id="payment-modal-title" className="text-base font-extrabold text-slate-900">
                   {t(locale, "recordPayment")}
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-600">
                   {selectedObl.tenant_name} •{" "}
                   {locale === "bn" ? `ফ্ল্যাট ${selectedObl.unit_code}` : `Unit ${selectedObl.unit_code}`}{" "}
                   • {locale === "bn" ? "বকেয়া" : "Due"}:{" "}
@@ -584,17 +613,19 @@ export function FinanceView({
               <button
                 type="button"
                 onClick={() => setSelectedObl(null)}
-                className="rounded-xl bg-slate-100 p-1.5 text-slate-500"
+                aria-label={locale === "bn" ? "বন্ধ করুন" : "Close dialog"}
+                className="rounded-xl bg-slate-100 p-1.5 text-slate-600"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-700">
+              <label htmlFor="payment-amount-input" className="mb-1 block text-xs font-bold text-slate-700">
                 {locale === "bn" ? "জমার পরিমাণ (পূর্ণ বা আংশিক টাকা)" : "Amount Received (BDT — Full or Partial)"}
               </label>
               <input
+                id="payment-amount-input"
                 required
                 type="number"
                 min="1"
@@ -665,6 +696,9 @@ export function FinanceView({
           onClick={() => setReversingPayment(null)}
         >
           <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reversal-modal-title"
             onSubmit={submitReversal}
             onClick={(e) => e.stopPropagation()}
             className="animate-sheet-up w-full max-w-md rounded-t-3xl bg-white p-5 pb-8 shadow-2xl sm:rounded-3xl sm:p-6 space-y-4"
@@ -672,10 +706,10 @@ export function FinanceView({
             <div className="mx-auto h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-extrabold text-rose-700">
+                <h3 id="reversal-modal-title" className="text-base font-extrabold text-rose-700">
                   {locale === "bn" ? "পেমেন্ট সংশোধন (রিভার্স)" : "Reverse Payment Entry"}
                 </h3>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-xs text-slate-600">
                   {reversingPayment.tenants?.full_name} •{" "}
                   {formatBdt(reversingPayment.amount_paisa, locale)}
                 </p>
@@ -683,24 +717,32 @@ export function FinanceView({
               <button
                 type="button"
                 onClick={() => setReversingPayment(null)}
-                className="rounded-xl bg-slate-100 p-1.5 text-slate-500"
+                aria-label={locale === "bn" ? "বন্ধ করুন" : "Close dialog"}
+                className="rounded-xl bg-slate-100 p-1.5 text-slate-600"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-            <textarea
-              required
-              minLength={3}
-              rows={3}
-              value={reversalReason}
-              onChange={(e) => setReversalReason(e.target.value)}
-              placeholder={
-                locale === "bn"
-                  ? "সংশোধন করার কারণ লিখুন (যেমন: ভুল অঙ্ক লেখা হয়েছিল)..."
-                  : "Reason for reversal (e.g. entered wrong amount)..."
-              }
-              className="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-rose-500 focus:outline-none"
-            />
+            <div>
+              <label htmlFor="reversal-reason-input" className="mb-1 block text-xs font-bold text-slate-700">
+                {locale === "bn" ? "সংশোধনের কারণ" : "Reversal Reason"}
+              </label>
+              <textarea
+                id="reversal-reason-input"
+                required
+                minLength={3}
+                maxLength={300}
+                rows={3}
+                value={reversalReason}
+                onChange={(e) => setReversalReason(e.target.value)}
+                placeholder={
+                  locale === "bn"
+                    ? "সংশোধন করার কারণ লিখুন (যেমন: ভুল অঙ্ক লেখা হয়েছিল)..."
+                    : "Reason for reversal (e.g. entered wrong amount)..."
+                }
+                className="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-rose-500 focus:outline-none"
+              />
+            </div>
             <div className="flex gap-2">
               <button
                 type="button"

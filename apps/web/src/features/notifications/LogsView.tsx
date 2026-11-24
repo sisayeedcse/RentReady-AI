@@ -50,11 +50,15 @@ export function LogsView({ accessToken, locale }: { accessToken: string; locale:
       if (action === "record_payment") return "ভাড়া জমা হয়েছে";
       if (action === "reverse_payment") return "পেমেন্ট সংশোধন (রিভার্স)";
       if (action === "record_expense") return "বাড়ির খরচ যুক্ত হয়েছে";
+      if (action === "create_maintenance_request") return "মেরামতের অনুরোধ যুক্ত হয়েছে";
+      if (action === "send_sms") return "নিশ্চিতকৃত SMS পাঠানো হয়েছে";
       return action;
     }
     if (action === "record_payment") return "Rent Payment Recorded";
     if (action === "reverse_payment") return "Payment Reversed";
     if (action === "record_expense") return "Expense Recorded";
+    if (action === "create_maintenance_request") return "Maintenance Ticket Created";
+    if (action === "send_sms") return "Confirmed SMS Dispatched";
     return action;
   };
 
@@ -123,7 +127,7 @@ export function LogsView({ accessToken, locale }: { accessToken: string; locale:
                       </span>
                     </div>
                     <p className="text-slate-600">{n.message_body}</p>
-                    <p className="font-mono text-[10px] text-slate-400">
+                    <p className="font-mono text-[10px] text-slate-600">
                       {new Date(n.created_at).toLocaleString()}
                       {log?.provider_request_id ? ` • Ref: ${log.provider_request_id}` : ""}
                     </p>

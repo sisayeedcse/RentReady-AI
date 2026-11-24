@@ -62,6 +62,24 @@ export function toFriendlyError(err: unknown, locale: Locale): string {
       : "This feature is not configured on the server yet.";
   }
 
+  if (lower.includes("unsupported audio") || lower.includes("valid audio format")) {
+    return locale === "bn"
+      ? "অডিও ফাইলটি সঠিক নয়। অনুগ্রহ করে সরাসরি মাইক্রোফোন ব্যবহার করুন অথবা নিচে লিখুন।"
+      : "Unsupported or invalid audio file. Please record directly with your microphone or type below.";
+  }
+
+  if (lower.includes("too many requests")) {
+    return locale === "bn"
+      ? "একটু বেশি অনুরোধ পাঠানো হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।"
+      : "Too many requests right now. Please wait a moment and try again.";
+  }
+
+  if (lower.includes("already been reversed") || lower.includes("already finalized")) {
+    return locale === "bn"
+      ? "এই কাজটি ইতিমধ্যেই সম্পন্ন বা বাতিল করা হয়েছে।"
+      : "This action has already been completed or cancelled.";
+  }
+
   if (lower.includes("empty transcript") || lower.includes("audio file")) {
     return locale === "bn"
       ? "কোনো কথা শোনা যায়নি। অনুগ্রহ করে মাইক্রোফোনের কাছে পরিষ্কারভাবে আবার বলুন।"

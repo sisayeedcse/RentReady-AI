@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getDhakaBillingMonthString, getDhakaDateString, isValidIsoCalendarDate } from "../date.js";
 import {
   addPaisa,
   bdtToPaisa,
@@ -9,6 +10,12 @@ import {
 } from "../money.js";
 import { isBanglalinkPrefix, normalizeBdPhone, toApplinkAddress } from "../phone.js";
 import { requiresConfirmation, VoiceActionPayloadSchema } from "../schemas/actions.js";
+import {
+  CreateExpenseRequestSchema,
+  GenerateObligationsSchema,
+  MAX_SAFE_AMOUNT_PAISA,
+  RecordPaymentRequestSchema
+} from "../schemas/domain.js";
 
 describe("money helpers (exact integer paisa)", () => {
   it("converts BDT strings and numbers to exact paisa with zero float drift", () => {
@@ -86,5 +93,43 @@ describe("AI Voice Action Contracts", () => {
     expect(requiresConfirmation("get_outstanding_rent")).toBe(false);
     expect(requiresConfirmation("get_monthly_collection")).toBe(false);
     expect(requiresConfirmation("prepare_rent_reminder")).toBe(true);
+  });
+});
+
+describe("Asia/Dhaka date helpers & strict domain schema bounds", () => {
+  it("computes Asia/Dhaka date correctly across UTC midnight boundary", () => {
+    // 2026-11-30T19:30:00Z is 2026-12-01T01:30:00+06:00 in Asia/Dhaka
+    const utcLateEvening = new Date("2026-11-30T19:30:00Z");
+    expect(getDhakaDateString(utcLateEvening)).toBe("2026-12-01");
+    expect(getDhakaBillingMonthString(utcLateEvening)).toBe("2026-12-01");
+  });
+
+  it("rejects impossible calendar dates, excessive paisa values, and malformed billing months", () => {
+    expect(isValidIsoCalendarDate("2026-02-28")).toBe(true);
+    expect(isValidIsoCalendarDate("2026-02-30")).toBe(false);
+    expect(isValidIsoCalendarDate("2026-13-01")).toBe(false);
+
+    expect(
+      CreateExpenseRequestSchema.safeParse({
+        property_id: "11111111-1111-4111-8111-111111111111",
+        category_name: "Repair",
+        amount_paisa: 1000,
+        incurred_on: "2026-02-31",
+        description: "Test",
+        idempotency_key: "exp-key-12345"
+      }).success
+    ).toBe(false);
+
+    expect(
+      RecordPaymentRequestSchema.safeParse({
+        tenancy_id: "11111111-1111-4111-8111-111111111111",
+        amount_paisa: MAX_SAFE_AMOUNT_PAISA + 1,
+        payment_method: "bkash",
+        idempotency_key: "pay-key-12345"
+      }).success
+    ).toBe(false);
+
+    expect(GenerateObligationsSchema.safeParse({ billing_month: "2026-11" }).success).toBe(true);
+    expect(GenerateObligationsSchema.safeParse({ billing_month: "invalid" }).success).toBe(false);
   });
 });

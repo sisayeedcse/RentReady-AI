@@ -9,6 +9,7 @@
  */
 
 export const APPLINK_SMS_SEND_URL = "https://api.applink.com.bd/sms/send" as const;
+const UPSTREAM_TIMEOUT_MS = 15_000;
 
 export interface ApplinkSmsRequest {
   message: string;
@@ -39,7 +40,7 @@ export function parseApplinkResponse(httpStatus: number, rawBody: unknown): Appl
   const statusCode = typeof body.statusCode === "string" ? body.statusCode : "UNKNOWN";
   const statusDetail =
     typeof body.statusDetail === "string"
-      ? body.statusDetail
+      ? body.statusDetail.slice(0, 200)
       : `Unexpected AppLink response (HTTP ${httpStatus})`;
   const requestId = typeof body.requestId === "string" ? body.requestId : null;
 
@@ -103,13 +104,17 @@ export async function sendApplinkSms(params: {
     deliveryStatusRequest: payload.deliveryStatusRequest ?? "1"
   };
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
   try {
     const response = await fetchImpl(APPLINK_SMS_SEND_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json;charset=utf-8"
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
     });
 
     let json: unknown = null;
@@ -128,13 +133,16 @@ export async function sendApplinkSms(params: {
 
     return parseApplinkResponse(response.status, json);
   } catch (err) {
+    const isAbort = err instanceof Error && err.name === "AbortError";
     return {
       ok: false,
       httpStatus: 0,
-      statusCode: "NETWORK_ERROR",
-      statusDetail: err instanceof Error ? err.message : "Network error contacting AppLink",
+      statusCode: isAbort ? "UPSTREAM_TIMEOUT" : "NETWORK_ERROR",
+      statusDetail: isAbort ? "AppLink gateway timed out" : "Network error contacting AppLink",
       requestId: null,
       errorCategory: "network_or_parse_error"
     };
+  } finally {
+    clearTimeout(timeout);
   }
 }

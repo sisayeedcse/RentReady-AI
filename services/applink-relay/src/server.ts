@@ -13,6 +13,8 @@ const sharedSecret = process.env.RELAY_SHARED_SECRET;
 const applicationId = process.env.APPLINK_APPLICATION_ID;
 const password = process.env.APPLINK_PASSWORD;
 const port = Number(process.env.PORT ?? "8788");
+const hostname = process.env.RELAY_HOST ?? "0.0.0.0";
+const isProd = process.env.NODE_ENV === "production";
 
 if (!sharedSecret || !applicationId || !password) {
   console.error(
@@ -22,8 +24,26 @@ if (!sharedSecret || !applicationId || !password) {
   process.exit(1);
 }
 
+if (sharedSecret.length < 32 || /replace-with|changeme|secret/i.test(sharedSecret)) {
+  const msg = "RELAY_SHARED_SECRET must be a random string of at least 32 characters (not a placeholder).";
+  if (isProd) {
+    console.error(`[FATAL] ${msg}`);
+    process.exit(1);
+  }
+  console.warn(`[WARN] ${msg}`);
+}
+
+if (/replace-with|APP_000000/i.test(password) || /APP_000000/i.test(applicationId)) {
+  const msg = "APPLINK_APPLICATION_ID or APPLINK_PASSWORD still contains placeholder values.";
+  if (isProd) {
+    console.error(`[FATAL] ${msg}`);
+    process.exit(1);
+  }
+  console.warn(`[WARN] ${msg}`);
+}
+
 const app = createRelayApp({ sharedSecret, applicationId, password });
 
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`RentReady AppLink Relay listening on http://0.0.0.0:${info.port}`);
+serve({ fetch: app.fetch, port, hostname }, (info) => {
+  console.log(`RentReady AppLink Relay listening on http://${hostname}:${info.port}`);
 });

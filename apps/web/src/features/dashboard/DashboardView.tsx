@@ -171,7 +171,7 @@ export function DashboardView({
       </div>
 
       {error && (
-        <div className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3.5 text-xs font-medium text-red-700">
+        <div role="alert" className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3.5 text-xs font-medium text-red-800">
           {error}
         </div>
       )}
@@ -186,7 +186,14 @@ export function DashboardView({
             {collectedPct}%
           </span>
         </div>
-        <div className="mt-2.5 h-3 w-full overflow-hidden rounded-full bg-slate-100">
+        <div
+          role="progressbar"
+          aria-valuenow={collectedPct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={locale === "bn" ? `মাসিক ভাড়া আদায় ${collectedPct}%` : `Monthly rent collection ${collectedPct}%`}
+          className="mt-2.5 h-3 w-full overflow-hidden rounded-full bg-slate-100"
+        >
           <div
             className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 ease-out"
             style={{ width: `${collectedPct}%` }}
@@ -289,16 +296,16 @@ export function DashboardView({
                     </p>
                     <p className="mt-0.5 text-xs font-bold text-amber-700">
                       {formatBdt(o.outstanding_paisa, locale)}{" "}
-                      <span className="font-normal text-slate-400">• {o.billing_month.slice(0, 7)}</span>
+                      <span className="font-normal text-slate-600">• {o.billing_month.slice(0, 7)}</span>
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <a
                       href={`tel:${o.tenant_phone}`}
-                      aria-label="Call Tenant"
+                      aria-label={locale === "bn" ? `${o.tenant_name}-কে কল করুন` : `Call ${o.tenant_name}`}
                       className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-90"
                     >
-                      <Phone className="h-3.5 w-3.5" />
+                      <Phone className="h-3.5 w-3.5" aria-hidden="true" />
                     </a>
                     <button
                       type="button"
@@ -364,7 +371,7 @@ export function DashboardView({
             </h4>
             <div className="mt-2 space-y-2">
               {(data?.open_maintenance ?? []).length === 0 ? (
-                <p className="text-xs text-slate-400">{t(locale, "noData")}</p>
+                <p className="text-xs text-slate-600">{t(locale, "noData")}</p>
               ) : (
                 (data?.open_maintenance ?? []).slice(0, 4).map((m) => (
                   <div

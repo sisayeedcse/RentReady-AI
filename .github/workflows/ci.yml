@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -20,9 +23,23 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Secret leak check
+        run: |
+          if git grep -nE 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|AIzaSy[0-9A-Za-z_-]{30,}|gsk_[0-9A-Za-z]{20,}|sk-or-v1-[0-9A-Za-z]{20,}|eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]{20,}' -- ':!.github/workflows/ci.yml'; then
+            echo "Potential leaked credential detected in tracked files!"
+            exit 1
+          fi
+      - name: Dependency vulnerability audit
+        run: pnpm audit --audit-level=high
       - name: Typecheck
         run: pnpm typecheck
       - name: Test
         run: pnpm test
       - name: Build
         run: pnpm build
+      - name: Verify zero source maps in production web dist
+        run: |
+          if find apps/web/dist -name '*.map' | grep -q .; then
+            echo "Source maps found in production build!"
+            exit 1
+          fi

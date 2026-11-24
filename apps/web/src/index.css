@@ -10,6 +10,15 @@
     overscroll-behavior-y: none;
     background-color: #f8fafc;
   }
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid #059669;
+    outline-offset: 2px;
+  }
 }
 
 @keyframes fadeUp {
@@ -113,4 +122,24 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-fade-up,
+  .animate-scale-in,
+  .animate-sheet-up,
+  .animate-mic-ripple,
+  .animate-mic-ripple-delayed,
+  .animate-wave-1,
+  .animate-wave-2,
+  .animate-wave-3,
+  .animate-wave-4,
+  .animate-pulse,
+  .animate-spin {
+    animation: none !important;
+    transition: none !important;
+  }
 }

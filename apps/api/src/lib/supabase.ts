@@ -1,8 +1,10 @@
+import { getDhakaBillingMonthString, getDhakaDateString } from "@rentready/shared";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Context, Next } from "hono";
 import type { EnvBindings } from "../app.js";
+import { getClientIp, logSecurityEvent, type SecurityVariables } from "./security.js";
 
-export interface AuthVariables {
+export interface AuthVariables extends SecurityVariables {
   userId: string;
   userEmail: string | null;
   accessToken: string;
@@ -38,23 +40,41 @@ export async function requireAuth(
 ): Promise<Response | void> {
   const authHeader = c.req.header("authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    logSecurityEvent("warn", "auth_missing_bearer", {
+      request_id: c.get("requestId"),
+      path: c.req.path,
+      client_ip: getClientIp(c)
+    });
     return c.json({ error: "Missing or invalid Authorization Bearer token" }, 401);
   }
 
   const token = authHeader.slice(7).trim();
-  if (!token) {
-    return c.json({ error: "Empty Bearer token" }, 401);
+  if (!token || token.length > 4096) {
+    logSecurityEvent("warn", "auth_malformed_bearer", {
+      request_id: c.get("requestId"),
+      path: c.req.path,
+      client_ip: getClientIp(c)
+    });
+    return c.json({ error: "Empty or malformed Bearer token" }, 401);
   }
 
   const supabaseUrl = c.env?.SUPABASE_URL;
   const supabaseAnonKey = c.env?.SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseAnonKey) {
-    return c.json({ error: "Server Supabase configuration is missing" }, 503);
+    logSecurityEvent("error", "server_supabase_unconfigured", {
+      request_id: c.get("requestId")
+    });
+    return c.json({ error: "Server authentication service is not configured" }, 503);
   }
 
   const supabase = createUserSupabaseClient(supabaseUrl, supabaseAnonKey, token);
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
+    logSecurityEvent("warn", "auth_invalid_session", {
+      request_id: c.get("requestId"),
+      path: c.req.path,
+      client_ip: getClientIp(c)
+    });
     return c.json({ error: "Invalid or expired session token" }, 401);
   }
 
@@ -67,19 +87,9 @@ export async function requireAuth(
 }
 
 export function getCurrentDhakaBillingMonth(now: Date = new Date()): string {
-  // Asia/Dhaka is UTC+06:00 (no DST)
-  const dhakaMs = now.getTime() + 6 * 60 * 60 * 1000;
-  const d = new Date(dhakaMs);
-  const year = d.getUTCFullYear();
-  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${year}-${month}-01`;
+  return getDhakaBillingMonthString(now);
 }
 
 export function getCurrentDhakaDate(now: Date = new Date()): string {
-  const dhakaMs = now.getTime() + 6 * 60 * 60 * 1000;
-  const d = new Date(dhakaMs);
-  const year = d.getUTCFullYear();
-  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getDhakaDateString(now);
 }

@@ -301,6 +301,8 @@ export function HeroVoiceLauncher({
         >
           <input
             type="text"
+            aria-label={locale === "bn" ? "ভয়েস বা টেক্সট কমান্ড লিখুন" : "Enter voice or text command"}
+            maxLength={600}
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
             placeholder={
@@ -308,27 +310,27 @@ export function HeroVoiceLauncher({
                 ? "যেমন: ফ্ল্যাট 3B রহিম ৮০০০ টাকা বিকাশ করেছে..."
                 : "e.g. Flat 3B Rahim paid 8000 via bKash..."
             }
-            className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none"
           />
           <button
             type="submit"
             disabled={analyzing || !transcript.trim()}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
           >
-            {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {analyzing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-3.5 w-3.5" aria-hidden="true" />}
             {locale === "bn" ? "যাচাই" : "Check"}
           </button>
         </form>
       )}
 
       {error && (
-        <div className="animate-scale-in mt-4 rounded-2xl bg-rose-950/60 px-4 py-2.5 text-xs font-medium text-rose-100 ring-1 ring-rose-400/40">
+        <div role="alert" className="animate-scale-in mt-4 rounded-2xl bg-rose-950/75 px-4 py-2.5 text-xs font-medium text-rose-100 ring-1 ring-rose-400/40">
           {error}
         </div>
       )}
       {banner && (
-        <div className="animate-scale-in mt-4 flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-emerald-800 shadow-md">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+        <div role="status" className="animate-scale-in mt-4 flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-emerald-800 shadow-md">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
           {banner}
         </div>
       )}
