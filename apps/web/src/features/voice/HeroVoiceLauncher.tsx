@@ -1,47 +1,10 @@
-import {
-  CheckCircle2,
-  Loader2,
-  Mic,
-  Send,
-  Sparkles,
-  Square
-} from "lucide-react";
+import { CheckCircle2, Loader2, Mic, Send, Sparkles, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch, generateIdempotencyKey } from "../../lib/api";
 import { toFriendlyError } from "../../lib/friendlyError";
 import { type Locale, t } from "../../lib/i18n";
 import { VoiceAnswerCard } from "./VoiceAnswerCard";
 import { type VoiceActionResult, VoiceConfirmationCard } from "./VoiceConfirmationCard";
-
-interface InterpretResponse {
-  action_id?: string;
-  status: "proposed" | "needs_clarification" | "answered" | "unknown";
-  intent: string;
-  reason?: string;
-  data?: unknown;
-  extracted_payload?: Record<string, unknown>;
-  resolved_entities?: {
-    tenancy?: {
-      tenancy_id: string;
-      tenant_name: string;
-      unit_code: string;
-      tenant_phone: string;
-    };
-    property?: { property_id: string; name: string };
-    total_outstanding_paisa?: number;
-    sms_preview?: string | null;
-    resolution?: {
-      status: string;
-      candidates?: Array<{
-        tenancy_id?: string;
-        property_id?: string;
-        tenant_name?: string;
-        unit_code?: string;
-        name?: string;
-      }>;
-    };
-  };
-}
 
 const QUICK_CHIPS = {
   bn: [
@@ -50,8 +13,8 @@ const QUICK_CHIPS = {
     "পানির পাম্প মেরামতে ১৫০০ টাকা খরচ হয়েছে"
   ],
   en: [
-    "Flat 3B er Rahim bhai 8000 taka bKash korse",
-    "How much rent is outstanding this month?",
+    "Flat 3B Rahim paid 8000 taka via bKash",
+    "How much rent is due this month?",
     "Spent 1500 taka on water pump repair"
   ]
 } as const;
@@ -59,11 +22,13 @@ const QUICK_CHIPS = {
 export function HeroVoiceLauncher({
   accessToken,
   locale,
-  onActionExecuted
+  onActionExecuted,
+  onToast
 }: {
   accessToken: string;
   locale: Locale;
   onActionExecuted?: () => void;
+  onToast?: (msg: string) => void;
 }) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -129,11 +94,7 @@ export function HeroVoiceLauncher({
       setRecording(true);
     } catch (err) {
       setShowTextBox(true);
-      setError(
-        err instanceof Error
-          ? `${err.message} — ${locale === "bn" ? "নিচে লিখে আপডেট দিন।" : "Type your update below."}`
-          : "Microphone unavailable. Type below."
-      );
+      setError(toFriendlyError(err, locale));
     }
   }
 
@@ -151,7 +112,6 @@ export function HeroVoiceLauncher({
       );
       setSessionId(res.session_id);
       setTranscript(res.transcript);
-      // Automatically run safe interpretation (NEVER writes without confirmation!)
       await runInterpret(res.transcript, res.session_id);
     } catch (err) {
       setError(toFriendlyError(err, locale));
@@ -199,11 +159,12 @@ export function HeroVoiceLauncher({
           edited_message: editedSms || undefined
         })
       });
-      setBanner(
+      const okMsg =
         locale === "bn"
-          ? "আপডেট সফলভাবে লেজারে যুক্ত হয়েছে!"
-          : "Update confirmed and saved to ledger!"
-      );
+          ? "সফলভাবে আপনার খাতায় যুক্ত হয়েছে!"
+          : "Saved to your ledger successfully!";
+      setBanner(okMsg);
+      onToast?.(okMsg);
       setResult(null);
       setTranscript("");
       onActionExecuted?.();
@@ -224,37 +185,36 @@ export function HeroVoiceLauncher({
   }
 
   return (
-    <section className="animate-fade-up relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 p-5 text-white shadow-lg shadow-emerald-900/15 sm:p-7">
-      {/* Decorative soft glow */}
-      <div className="pointer-events-none absolute -top-16 -right-16 h-52 w-52 rounded-full bg-emerald-400/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-20 -left-16 h-52 w-52 rounded-full bg-teal-300/15 blur-3xl" />
+    <section className="animate-fade-up relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 p-5 text-white shadow-xl shadow-emerald-950/15 sm:p-7">
+      <div className="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-teal-300/15 blur-3xl" />
 
       <div className="relative flex flex-col items-center text-center">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-50 backdrop-blur-xs">
           <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-          {locale === "bn" ? "বাংলা ভয়েস অ্যাসিস্ট্যান্ট" : "Bangla Voice Assistant"}
+          {locale === "bn" ? "বাংলা ভয়েস হিসাবরক্ষক" : "Smart Voice Assistant"}
         </span>
 
-        <h2 className="mt-3 text-xl font-bold tracking-tight sm:text-2xl">
+        <h2 className="mt-2.5 text-xl font-extrabold tracking-tight sm:text-2xl">
           {recording
             ? locale === "bn"
               ? `শুনছি... (${seconds} সেকেন্ড)`
               : `Listening... (${seconds}s)`
             : transcribing
               ? locale === "bn"
-                ? "বাংলা কথা লেখা হচ্ছে..."
-                : "Transcribing Bangla..."
+                ? "আপনার কথা লেখা হচ্ছে..."
+                : "Understanding your voice..."
               : locale === "bn"
-                ? "ট্যাপ করুন এবং ভাড়ার আপডেট বলুন"
+                ? "ট্যাপ করে বাংলায় হিসাব বলুন"
                 : "Tap & Say Your Rent Update"}
         </h2>
         <p className="mt-1 max-w-md text-xs text-emerald-100/90 sm:text-sm">
           {locale === "bn"
-            ? "যেমন: “ফ্ল্যাট ৩বি এর রহিম ভাই ৮০০০ টাকা বিকাশ করেছে” — নিশ্চিত করার আগে কিছু সেভ হবে না।"
-            : "e.g. “Flat 3B er Rahim bhai 8000 taka bKash korse” — nothing saves until you confirm."}
+            ? "ভাড়া জমা, খরচ বা বকেয়া জানতে মুখে বলুন — আপনার অনুমতি ছাড়া কিছুই সেভ হবে না।"
+            : "Record rent, add expenses, or check dues by voice — nothing saves until you confirm."}
         </p>
 
-        {/* BIG INTERACTIVE VOICE MIC BUTTON */}
+        {/* BIG TACTILE MIC LAUNCH BUTTON */}
         <div className="relative my-6 flex items-center justify-center">
           {(recording || !transcribing) && (
             <>
@@ -278,10 +238,10 @@ export function HeroVoiceLauncher({
             disabled={transcribing || analyzing}
             onClick={() => void toggleMic()}
             aria-label={recording ? t(locale, "stopRecording") : t(locale, "startRecording")}
-            className={`relative z-10 flex h-24 w-24 cursor-pointer items-center justify-center rounded-full shadow-2xl ring-4 transition-all duration-200 active:scale-90 disabled:opacity-70 ${
+            className={`relative z-10 flex h-24 w-24 cursor-pointer items-center justify-center rounded-full shadow-2xl ring-4 transition-all duration-200 active:scale-90 disabled:opacity-75 ${
               recording
                 ? "bg-gradient-to-br from-rose-500 to-red-600 ring-rose-300/60"
-                : "bg-white text-emerald-700 ring-white/30 hover:scale-105 hover:shadow-emerald-950/30"
+                : "bg-white text-emerald-700 ring-white/30 hover:scale-105"
             }`}
           >
             {transcribing || analyzing ? (
@@ -294,7 +254,6 @@ export function HeroVoiceLauncher({
           </button>
         </div>
 
-        {/* Live waveform bars when recording */}
         {recording && (
           <div className="mb-3 flex h-6 items-center gap-1.5">
             <span className="h-full w-1 rounded-full bg-white animate-wave-1" />
@@ -305,7 +264,7 @@ export function HeroVoiceLauncher({
           </div>
         )}
 
-        {/* Quick example chips + Type fallback toggle */}
+        {/* Tap-to-Try Chips + Text Fallback */}
         <div className="flex flex-wrap justify-center gap-1.5">
           {QUICK_CHIPS[locale].map((chip) => (
             <button
@@ -316,7 +275,7 @@ export function HeroVoiceLauncher({
                 setShowTextBox(true);
                 void runInterpret(chip);
               }}
-              className="rounded-full bg-white/12 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-xs transition hover:bg-white/22 active:scale-95"
+              className="rounded-full bg-white/14 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-xs transition hover:bg-white/24 active:scale-95"
             >
               “{chip}”
             </button>
@@ -324,21 +283,21 @@ export function HeroVoiceLauncher({
           <button
             type="button"
             onClick={() => setShowTextBox((v) => !v)}
-            className="rounded-full border border-white/30 px-3 py-1.5 text-[11px] font-semibold text-emerald-50 transition hover:bg-white/15"
+            className="rounded-full border border-white/35 px-3 py-1.5 text-[11px] font-bold text-emerald-50 transition hover:bg-white/15"
           >
-            {locale === "bn" ? "অথবা লিখে বলুন" : "Or type instead"}
+            {locale === "bn" ? "অথবা লিখে দিন" : "Or type here"}
           </button>
         </div>
       </div>
 
-      {/* Editable Transcript Bar */}
+      {/* Inline Editable Transcript Bar */}
       {showTextBox && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void runInterpret(transcript);
           }}
-          className="animate-scale-in relative mt-5 flex gap-2 rounded-2xl bg-white/95 p-2 text-slate-900 shadow-md"
+          className="animate-scale-in relative mt-5 flex gap-2 rounded-2xl bg-white p-2 text-slate-900 shadow-lg"
         >
           <input
             type="text"
@@ -346,8 +305,8 @@ export function HeroVoiceLauncher({
             onChange={(e) => setTranscript(e.target.value)}
             placeholder={
               locale === "bn"
-                ? "বাংলা বা বাংলিশে লিখুন (যেমন: 3B Rahim 8000 taka bkash)"
-                : "Edit transcript or type command..."
+                ? "যেমন: ফ্ল্যাট 3B রহিম ৮০০০ টাকা বিকাশ করেছে..."
+                : "e.g. Flat 3B Rahim paid 8000 via bKash..."
             }
             className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
           />
@@ -357,25 +316,23 @@ export function HeroVoiceLauncher({
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
           >
             {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            {locale === "bn" ? "যাচাই" : "Go"}
+            {locale === "bn" ? "যাচাই" : "Check"}
           </button>
         </form>
       )}
 
-      {/* Feedback banners */}
       {error && (
-        <div className="animate-scale-in mt-4 rounded-2xl bg-rose-950/60 px-4 py-2.5 text-xs text-rose-100 ring-1 ring-rose-400/40">
+        <div className="animate-scale-in mt-4 rounded-2xl bg-rose-950/60 px-4 py-2.5 text-xs font-medium text-rose-100 ring-1 ring-rose-400/40">
           {error}
         </div>
       )}
       {banner && (
-        <div className="animate-scale-in mt-4 flex items-center gap-2 rounded-2xl bg-white/95 px-4 py-3 text-xs font-bold text-emerald-800 shadow-md">
+        <div className="animate-scale-in mt-4 flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-emerald-800 shadow-md">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
           {banner}
         </div>
       )}
 
-      {/* Human-Readable DB Answer Card */}
       {result && (result.status === "answered" || result.status === "unknown") && (
         <VoiceAnswerCard
           intent={result.intent}
@@ -386,7 +343,6 @@ export function HeroVoiceLauncher({
         />
       )}
 
-      {/* Explicit Confirmation / Disambiguation Card */}
       {result && (result.status === "proposed" || result.status === "needs_clarification") && (
         <VoiceConfirmationCard
           result={result}

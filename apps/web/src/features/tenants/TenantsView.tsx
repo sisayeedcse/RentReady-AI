@@ -1,7 +1,8 @@
 import { bdtToPaisa, formatBdt } from "@rentready/shared";
-import { Plus, UserCheck, Users } from "lucide-react";
+import { Phone, Plus, Search, UserCheck, Users, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
+import { toFriendlyError } from "../../lib/friendlyError";
 import { type Locale, t } from "../../lib/i18n";
 
 interface TenantRow {
@@ -27,15 +28,26 @@ interface TenancyRow {
   units: { unit_code: string; properties: { name: string } | null } | null;
 }
 
-export function TenantsView({ accessToken, locale }: { accessToken: string; locale: Locale }) {
+export function TenantsView({
+  accessToken,
+  locale,
+  onToast
+}: {
+  accessToken: string;
+  locale: Locale;
+  onToast?: (msg: string) => void;
+}) {
   const [tenants, setTenants] = useState<TenantRow[]>([]);
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [tenancies, setTenancies] = useState<TenancyRow[]>([]);
+  const [search, setSearch] = useState("");
+  const [openForm, setOpenForm] = useState<"none" | "tenant" | "assign">("none");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [unitId, setUnitId] = useState("");
   const [tenantId, setTenantId] = useState("");
   const [monthlyRentBdt, setMonthlyRentBdt] = useState("12000");
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -49,9 +61,9 @@ export function TenantsView({ accessToken, locale }: { accessToken: string; loca
       setUnits(uRes.data);
       setTenancies(tnRes.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tenants");
+      setError(toFriendlyError(err, locale));
     }
-  }, [accessToken]);
+  }, [accessToken, locale]);
 
   useEffect(() => {
     void load();
@@ -59,6 +71,7 @@ export function TenantsView({ accessToken, locale }: { accessToken: string; loca
 
   async function addTenant(e: React.FormEvent) {
     e.preventDefault();
+    setSaving(true);
     setError(null);
     try {
       await apiFetch("/api/tenants", accessToken, {
@@ -67,14 +80,19 @@ export function TenantsView({ accessToken, locale }: { accessToken: string; loca
       });
       setFullName("");
       setPhone("");
+      setOpenForm("none");
+      onToast?.(locale === "bn" ? "নতুন ভাড়াটিয়া যুক্ত হয়েছে!" : "Tenant added!");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add tenant");
+      setError(toFriendlyError(err, locale));
+    } finally {
+      setSaving(false);
     }
   }
 
   async function assignTenancy(e: React.FormEvent) {
     e.preventDefault();
+    setSaving(true);
     setError(null);
     try {
       await apiFetch("/api/tenancies", accessToken, {
@@ -89,51 +107,130 @@ export function TenantsView({ accessToken, locale }: { accessToken: string; loca
       });
       setUnitId("");
       setTenantId("");
+      setOpenForm("none");
+      onToast?.(locale === "bn" ? "ফ্ল্যাটে ভাড়াটিয়া বরাদ্দ হয়েছে!" : "Tenant assigned to unit!");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not assign tenancy");
+      setError(toFriendlyError(err, locale));
+    } finally {
+      setSaving(false);
     }
   }
 
-  return (
-    <div className="space-y-6">
-      {error && <div className="rounded-xl bg-red-50 p-3 text-xs text-red-700">{error}</div>}
+  const q = search.trim().toLowerCase();
+  const filteredTenancies = tenancies.filter((row) => {
+    if (!q) return true;
+    return (
+      (row.tenants?.full_name ?? "").toLowerCase().includes(q) ||
+      (row.tenants?.phone_e164 ?? "").includes(q) ||
+      (row.units?.unit_code ?? "").toLowerCase().includes(q)
+    );
+  });
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <form onSubmit={addTenant} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
-          <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-            <Users className="h-4 w-4 text-emerald-600" />
-            {locale === "bn" ? "নতুন ভাড়াটিয়া যোগ করুন" : "Add Tenant"}
-          </h3>
-          <input
-            required
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder={locale === "bn" ? "ভাড়াটিয়ার নাম (যেমন: রহিম উদ্দিন)" : "Tenant full name"}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-          />
-          <input
-            required
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="019XXXXXXXX (Banglalink for AppLink SMS)"
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-          />
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-extrabold text-slate-900">
+            {locale === "bn" ? "ভাড়াটিয়া ব্যবস্থাপনা" : "Tenants & Leases"}
+          </h2>
+          <p className="text-xs text-slate-500">
+            {locale === "bn"
+              ? `মোট ${tenants.length} জন ভাড়াটিয়া • ${tenancies.length}টি সক্রিয় ফ্ল্যাট বরাদ্দ`
+              : `${tenants.length} total tenants • ${tenancies.length} active leases`}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+            type="button"
+            onClick={() => setOpenForm(openForm === "tenant" ? "none" : "tenant")}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
           >
             <Plus className="h-4 w-4" />
-            {locale === "bn" ? "ভাড়াটিয়া সেভ করুন" : "Save Tenant"}
+            {locale === "bn" ? "নতুন ভাড়াটিয়া" : "Add Tenant"}
           </button>
-        </form>
-
-        <form onSubmit={assignTenancy} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
-          <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+          <button
+            type="button"
+            onClick={() => setOpenForm(openForm === "assign" ? "none" : "assign")}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-2xs transition hover:bg-slate-50 active:scale-95"
+          >
             <UserCheck className="h-4 w-4 text-emerald-600" />
-            {locale === "bn" ? "ফ্ল্যাটে ভাড়াটিয়া বরাদ্দ করুন" : "Assign Tenant to Unit"}
-          </h3>
-          <div className="grid grid-cols-2 gap-2">
+            {locale === "bn" ? "ফ্ল্যাট বরাদ্দ" : "Assign Unit"}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="animate-scale-in rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+          {error}
+        </div>
+      )}
+
+      {openForm === "tenant" && (
+        <form
+          onSubmit={addTenant}
+          className="animate-scale-in rounded-2xl border border-emerald-200 bg-white p-5 shadow-md space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+              <Users className="h-4 w-4 text-emerald-600" />
+              {locale === "bn" ? "নতুন ভাড়াটিয়ার তথ্য" : "New Tenant Profile"}
+            </h3>
+            <button type="button" onClick={() => setOpenForm("none")} className="text-slate-400">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder={locale === "bn" ? "ভাড়াটিয়ার নাম (যেমন: রহিম উদ্দিন)" : "Tenant full name"}
+              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
+            />
+            <input
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder={locale === "bn" ? "মোবাইল নম্বর (যেমন: 019XXXXXXXX)" : "Mobile number (e.g. 019XXXXXXXX)"}
+              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setOpenForm("none")}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700"
+            >
+              {t(locale, "cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+            >
+              {saving ? "..." : locale === "bn" ? "ভাড়াটিয়া সেভ করুন" : "Save Tenant"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {openForm === "assign" && (
+        <form
+          onSubmit={assignTenancy}
+          className="animate-scale-in rounded-2xl border border-emerald-200 bg-white p-5 shadow-md space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+              <UserCheck className="h-4 w-4 text-emerald-600" />
+              {locale === "bn" ? "খালি ফ্ল্যাটে ভাড়াটিয়া বরাদ্দ করুন" : "Assign Tenant to Vacant Unit"}
+            </h3>
+            <button type="button" onClick={() => setOpenForm("none")} className="text-slate-400">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
             <select
               required
               value={unitId}
@@ -142,77 +239,121 @@ export function TenantsView({ accessToken, locale }: { accessToken: string; loca
                 const found = units.find((u) => u.id === e.target.value);
                 if (found) setMonthlyRentBdt(String(found.default_rent_paisa / 100));
               }}
-              className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
             >
-              <option value="">{locale === "bn" ? "খালি ফ্ল্যাট" : "Vacant Unit"}</option>
+              <option value="">{locale === "bn" ? "খালি ফ্ল্যাট বাছাই করুন" : "Select Vacant Unit"}</option>
               {units
                 .filter((u) => u.status === "vacant")
                 .map((u) => (
                   <option key={u.id} value={u.id}>
-                    Unit {u.unit_code}
+                    {locale === "bn" ? `ফ্ল্যাট ${u.unit_code}` : `Unit ${u.unit_code}`}
                   </option>
                 ))}
             </select>
-
             <select
               required
               value={tenantId}
               onChange={(e) => setTenantId(e.target.value)}
-              className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
             >
-              <option value="">{locale === "bn" ? "ভাড়াটিয়া" : "Select Tenant"}</option>
+              <option value="">{locale === "bn" ? "ভাড়াটিয়া বাছাই করুন" : "Select Tenant"}</option>
               {tenants.map((tn) => (
                 <option key={tn.id} value={tn.id}>
                   {tn.full_name} ({tn.phone_e164})
                 </option>
               ))}
             </select>
+            <input
+              required
+              type="number"
+              min="1"
+              value={monthlyRentBdt}
+              onChange={(e) => setMonthlyRentBdt(e.target.value)}
+              placeholder={locale === "bn" ? "মাসিক ভাড়া (টাকা)" : "Monthly Rent (BDT)"}
+              className="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+            />
           </div>
-          <input
-            required
-            type="number"
-            min="1"
-            value={monthlyRentBdt}
-            onChange={(e) => setMonthlyRentBdt(e.target.value)}
-            placeholder="Monthly Rent (BDT)"
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            disabled={!unitId || !tenantId}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            {locale === "bn" ? "ভাড়া চুক্তি চালু করুন" : "Start Active Tenancy"}
-          </button>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setOpenForm("none")}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700"
+            >
+              {t(locale, "cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !unitId || !tenantId}
+              className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {saving ? "..." : locale === "bn" ? "চুক্তি চালু করুন" : "Start Lease"}
+            </button>
+          </div>
         </form>
+      )}
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-3 left-3.5 h-4 w-4 text-slate-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={
+            locale === "bn"
+              ? "নাম, ফ্ল্যাট নম্বর বা মোবাইল দিয়ে খুঁজুন..."
+              : "Search by tenant name, unit, or phone..."
+          }
+          className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 pr-4 pl-10 text-sm shadow-2xs focus:border-emerald-500 focus:outline-none"
+        />
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-        <h3 className="text-sm font-bold text-slate-900">
-          {locale === "bn" ? "সক্রিয় ভাড়াটিয়া তালিকা" : "Active Tenancies"} ({tenancies.length})
-        </h3>
-        <div className="mt-3 divide-y divide-slate-100">
-          {tenancies.length === 0 ? (
-            <p className="py-4 text-xs text-slate-500">{t(locale, "noData")}</p>
-          ) : (
-            tenancies.map((row) => (
-              <div key={row.id} className="flex items-center justify-between py-3 text-sm">
-                <div>
-                  <p className="font-semibold text-slate-900">
-                    {row.tenants?.full_name} — Unit {row.units?.unit_code}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {row.tenants?.phone_e164} • {row.units?.properties?.name}
-                  </p>
+      {/* Active Tenancies Cards */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {filteredTenancies.length === 0 ? (
+          <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white py-10 text-center text-xs text-slate-500">
+            {t(locale, "noData")}
+          </div>
+        ) : (
+          filteredTenancies.map((row) => (
+            <div
+              key={row.id}
+              className="animate-fade-up flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition hover:shadow-md"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-extrabold text-slate-900">
+                    {row.tenants?.full_name}
+                  </span>
+                  <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                    {locale === "bn"
+                      ? `ফ্ল্যাট ${row.units?.unit_code}`
+                      : `Unit ${row.units?.unit_code}`}
+                  </span>
                 </div>
-                <span className="font-bold text-emerald-700">
-                  {formatBdt(row.monthly_rent_paisa, locale)}/mo
-                </span>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {row.units?.properties?.name} • {row.tenants?.phone_e164}
+                </p>
+                <p className="mt-1.5 text-sm font-extrabold text-emerald-700">
+                  {formatBdt(row.monthly_rent_paisa, locale)}
+                  <span className="text-[11px] font-normal text-slate-500">
+                    {locale === "bn" ? " / মাস" : " / month"}
+                  </span>
+                </p>
               </div>
-            ))
-          )}
-        </div>
-      </section>
+              {row.tenants?.phone_e164 && (
+                <a
+                  href={`tel:${row.tenants.phone_e164}`}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 active:scale-90"
+                  aria-label="Call Tenant"
+                >
+                  <Phone className="h-4 w-4" />
+                </a>
+              )}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

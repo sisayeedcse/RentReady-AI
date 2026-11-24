@@ -12,13 +12,13 @@ import {
   X
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
+import { Toast } from "./components/Toast";
 import { AuthScreen } from "./features/auth/AuthScreen";
 import { DashboardView } from "./features/dashboard/DashboardView";
 import { type SmsDraft, SmsModal } from "./features/notifications/SmsModal";
 import { type Locale, t } from "./lib/i18n";
 import { supabase } from "./lib/supabase";
 
-// Code-split secondary views for ultra-fast initial mobile launch load
 const FinanceView = lazy(() =>
   import("./features/finance/FinanceView").then((m) => ({ default: m.FinanceView }))
 );
@@ -47,6 +47,7 @@ export function App() {
   const [tab, setTab] = useState<TabId>("dashboard");
   const [smsDraft, setSmsDraft] = useState<SmsDraft | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -60,6 +61,13 @@ export function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  function showToast(msg: string) {
+    setToastMsg(msg);
+    window.setTimeout(() => {
+      setToastMsg((curr) => (curr === msg ? null : curr));
+    }, 3200);
+  }
+
   const toggleLocale = () => setLocale((prev) => (prev === "bn" ? "en" : "bn"));
 
   if (checkingAuth) {
@@ -68,7 +76,7 @@ export function App() {
         <div className="flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md">
           <Building2 className="h-6 w-6" />
         </div>
-        <p className="text-xs font-semibold text-slate-500">RentReady AI...</p>
+        <p className="text-xs font-bold text-slate-500">{t(locale, "brand")}...</p>
       </div>
     );
   }
@@ -76,6 +84,9 @@ export function App() {
   if (!session) {
     return <AuthScreen locale={locale} onToggleLocale={toggleLocale} />;
   }
+
+  const rawFullName = (session.user.user_metadata?.full_name as string | undefined) ?? "";
+  const cleanUserName = rawFullName.replace(/\s*\(demo.*?\)\s*/gi, "").trim();
 
   const navItems: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
     { id: "dashboard", label: t(locale, "navDashboard"), icon: <LayoutDashboard className="h-4 w-4" /> },
@@ -97,8 +108,10 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-8">
-      {/* Glassmorphic Sticky Top Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 backdrop-blur-md">
+      <Toast message={toastMsg} onClose={() => setToastMsg(null)} />
+
+      {/* Clean Glassmorphic Top Header */}
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <button
             type="button"
@@ -112,7 +125,7 @@ export function App() {
               <h1 className="text-base font-extrabold tracking-tight text-slate-900">
                 {t(locale, "brand")}
               </h1>
-              <p className="text-[10px] font-semibold text-emerald-700">{t(locale, "badge")}</p>
+              <p className="text-[11px] font-medium text-emerald-700">{t(locale, "badge")}</p>
             </div>
           </button>
 
@@ -162,21 +175,41 @@ export function App() {
         <main key={tab} className="animate-fade-up min-w-0 flex-1">
           <Suspense fallback={<ViewSkeleton />}>
             {tab === "dashboard" && (
-              <DashboardView accessToken={token} locale={locale} onOpenSms={setSmsDraft} />
+              <DashboardView
+                accessToken={token}
+                locale={locale}
+                userName={cleanUserName || undefined}
+                onOpenSms={setSmsDraft}
+                onNavigate={selectTab}
+                onToast={showToast}
+              />
             )}
-            {tab === "voice" && <VoiceCopilotView accessToken={token} locale={locale} />}
-            {tab === "properties" && <PropertiesView accessToken={token} locale={locale} />}
-            {tab === "tenants" && <TenantsView accessToken={token} locale={locale} />}
+            {tab === "voice" && (
+              <VoiceCopilotView accessToken={token} locale={locale} onToast={showToast} />
+            )}
+            {tab === "properties" && (
+              <PropertiesView accessToken={token} locale={locale} onToast={showToast} />
+            )}
+            {tab === "tenants" && (
+              <TenantsView accessToken={token} locale={locale} onToast={showToast} />
+            )}
             {tab === "finance" && (
-              <FinanceView accessToken={token} locale={locale} onOpenSms={setSmsDraft} />
+              <FinanceView
+                accessToken={token}
+                locale={locale}
+                onOpenSms={setSmsDraft}
+                onToast={showToast}
+              />
             )}
-            {tab === "maintenance" && <MaintenanceView accessToken={token} locale={locale} />}
+            {tab === "maintenance" && (
+              <MaintenanceView accessToken={token} locale={locale} onToast={showToast} />
+            )}
             {tab === "logs" && <LogsView accessToken={token} locale={locale} />}
           </Suspense>
         </main>
       </div>
 
-      {/* Native-App-Style Mobile Bottom Navigation with BIG Raised Center Mic Button */}
+      {/* Native-App Mobile Bottom Bar with Raised Center Voice Mic Button */}
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/90 bg-white/95 backdrop-blur-md md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5 items-end px-2 pt-1.5 pb-1">
           <MobileTabButton
@@ -188,11 +221,10 @@ export function App() {
           <MobileTabButton
             active={tab === "finance"}
             icon={<Wallet className="h-5 w-5" />}
-            label={locale === "bn" ? "লেজার" : "Ledger"}
+            label={locale === "bn" ? "ভাড়া" : "Ledger"}
             onClick={() => selectTab("finance")}
           />
 
-          {/* Raised Glowing Center Mic Button */}
           <div className="flex flex-col items-center">
             <button
               type="button"
@@ -229,16 +261,17 @@ export function App() {
       {/* Mobile "More" Slide-Up Sheet */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end bg-slate-900/40 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-50 flex items-end bg-slate-900/45 backdrop-blur-xs md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         >
           <div
-            className="animate-fade-up w-full rounded-t-3xl bg-white p-5 pb-8 shadow-2xl"
+            className="animate-sheet-up w-full rounded-t-3xl bg-white p-5 pb-8 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
             <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-900">
-                {locale === "bn" ? "সকল মেনু" : "All Sections"}
+              <p className="text-sm font-extrabold text-slate-900">
+                {locale === "bn" ? "সকল অপশন" : "All Sections"}
               </p>
               <button
                 type="button"
@@ -275,6 +308,7 @@ export function App() {
           accessToken={token}
           locale={locale}
           onClose={() => setSmsDraft(null)}
+          onSent={showToast}
         />
       )}
     </div>

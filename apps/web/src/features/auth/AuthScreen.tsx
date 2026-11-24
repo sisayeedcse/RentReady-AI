@@ -1,4 +1,4 @@
-import { Building2, Lock, Mail, Mic, Send, ShieldCheck, User } from "lucide-react";
+import { Building2, CheckCircle2, Lock, Mail, Mic, Send, ShieldCheck, User } from "lucide-react";
 import { useState } from "react";
 import { toFriendlyError } from "../../lib/friendlyError";
 import { type Locale, t } from "../../lib/i18n";
@@ -36,8 +36,8 @@ export function AuthScreen({
         if (err) throw err;
         setNotice(
           locale === "bn"
-            ? "অ্যাকাউন্ট তৈরি হয়েছে! অনুগ্রহ করে ইমেইল যাচাই করুন অথবা লগইন করুন।"
-            : "Account created! Please check your email or sign in."
+            ? "অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে! এখন লগইন করুন।"
+            : "Account created successfully! Please sign in."
         );
       } else {
         const { error: err } = await supabase.auth.signInWithPassword({ email, password });
@@ -51,18 +51,19 @@ export function AuthScreen({
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-50/90 via-white to-slate-100 p-4">
-      <div className="animate-fade-up w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-emerald-950/5">
-        {/* Sleek Top Brand Strip */}
-        <div className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-50 via-white to-slate-100 p-4">
+      <div className="animate-fade-up w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl shadow-emerald-950/10">
+        {/* Clean Brand Header */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 p-6 text-white">
+          <div className="pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-xs ring-1 ring-white/25">
                 <Building2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-extrabold tracking-tight">{t(locale, "brand")}</h1>
-                <p className="text-[11px] font-medium text-emerald-100">{t(locale, "badge")}</p>
+                <h1 className="text-xl font-extrabold tracking-tight">{t(locale, "brand")}</h1>
+                <p className="text-xs font-medium text-emerald-100">{t(locale, "badge")}</p>
               </div>
             </div>
             <button
@@ -74,28 +75,36 @@ export function AuthScreen({
             </button>
           </div>
 
-          <p className="mt-4 text-sm leading-relaxed text-emerald-50">{t(locale, "tagline")}</p>
+          <p className="relative mt-4 text-sm leading-relaxed text-emerald-50">
+            {t(locale, "tagline")}
+          </p>
 
-          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-emerald-50">
+          <div className="relative mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-emerald-50">
             <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1">
-              <Mic className="h-3 w-3" /> Bangla Voice AI
+              <Mic className="h-3 w-3" />
+              {locale === "bn" ? "বাংলা ভয়েস এন্ট্রি" : "Bangla Voice Entry"}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1">
-              <ShieldCheck className="h-3 w-3" /> Exact Ledger
+              <ShieldCheck className="h-3 w-3" />
+              {locale === "bn" ? "নির্ভুল বকেয়া হিসাব" : "Exact Due Ledger"}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1">
-              <Send className="h-3 w-3" /> AppLink SMS
+              <Send className="h-3 w-3" />
+              {locale === "bn" ? "তাৎক্ষণিক SMS রসিদ" : "Instant SMS Receipts"}
             </span>
           </div>
         </div>
 
         <div className="p-6 sm:p-7">
           {!isSupabaseConfigured ? (
-            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-              <p className="font-bold">Supabase Environment Variables Required</p>
-              <p className="mt-1 text-xs leading-relaxed">
-                Copy <code>apps/web/.env.example</code> to <code>apps/web/.env.local</code> and add{" "}
-                <code>VITE_SUPABASE_URL</code> + <code>VITE_SUPABASE_ANON_KEY</code>.
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900">
+              <p className="font-bold">
+                {locale === "bn" ? "সার্ভার সংযোগ সেটআপ প্রয়োজন" : "Service Connection Required"}
+              </p>
+              <p className="mt-1">
+                {locale === "bn"
+                  ? "অনুগ্রহ করে আপনার অ্যাডমিনের সাথে যোগাযোগ করুন।"
+                  : "Please configure environment settings before signing in."}
               </p>
             </div>
           ) : (
@@ -137,7 +146,7 @@ export function AuthScreen({
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      placeholder="Md. Kamal Hossain"
+                      placeholder={locale === "bn" ? "যেমন: মোঃ কামাল হোসেন" : "e.g. Md. Kamal Hossain"}
                       className="w-full rounded-xl border border-slate-300 py-2.5 pr-3 pl-10 text-sm transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                     />
                   </div>
@@ -155,7 +164,7 @@ export function AuthScreen({
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="landlord@example.com"
+                    placeholder="name@example.com"
                     className="w-full rounded-xl border border-slate-300 py-2.5 pr-3 pl-10 text-sm transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                   />
                 </div>
@@ -185,7 +194,8 @@ export function AuthScreen({
                 </div>
               )}
               {notice && (
-                <div className="animate-scale-in rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800">
+                <div className="animate-scale-in flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
                   {notice}
                 </div>
               )}
@@ -195,12 +205,24 @@ export function AuthScreen({
                 disabled={loading}
                 className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60"
               >
-                {loading ? "..." : mode === "signin" ? t(locale, "signIn") : t(locale, "signUp")}
+                {loading
+                  ? locale === "bn"
+                    ? "অপেক্ষা করুন..."
+                    : "Please wait..."
+                  : mode === "signin"
+                    ? t(locale, "signIn")
+                    : t(locale, "signUp")}
               </button>
             </form>
           )}
         </div>
       </div>
+
+      <p className="mt-5 text-center text-[11px] font-medium text-slate-400">
+        {locale === "bn"
+          ? "নিরাপদ এনক্রিপ্টেড ডিজিটাল হিসাবরক্ষক • বাংলাদেশ"
+          : "Secure Digital Property & Rent Ledger • Bangladesh"}
+      </p>
     </div>
   );
 }

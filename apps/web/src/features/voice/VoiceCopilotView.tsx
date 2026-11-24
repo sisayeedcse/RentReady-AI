@@ -1,294 +1,104 @@
-import { CheckCircle2, Mic, Sparkles, Square } from "lucide-react";
-import { useRef, useState } from "react";
-import { apiFetch, generateIdempotencyKey } from "../../lib/api";
-import { toFriendlyError } from "../../lib/friendlyError";
-import { type Locale, t } from "../../lib/i18n";
-import { VoiceAnswerCard } from "./VoiceAnswerCard";
-import { type VoiceActionResult, VoiceConfirmationCard } from "./VoiceConfirmationCard";
+import { HelpCircle, Receipt, Send, Wallet, Wrench } from "lucide-react";
+import type { Locale } from "../../lib/i18n";
+import { HeroVoiceLauncher } from "./HeroVoiceLauncher";
 
-interface InterpretResponse {
-  action_id?: string;
-  status: "proposed" | "needs_clarification" | "answered" | "unknown";
-  requires_confirmation?: boolean;
-  intent: string;
-  reason?: string;
-  model?: string;
-  data?: unknown;
-  extracted_payload?: Record<string, unknown>;
-  resolved_entities?: {
-    tenancy?: {
-      tenancy_id: string;
-      tenant_name: string;
-      unit_code: string;
-      tenant_phone: string;
-    };
-    property?: { property_id: string; name: string };
-    total_outstanding_paisa?: number;
-    is_banglalink?: boolean;
-    sms_preview?: string | null;
-    resolution?: {
-      status: string;
-      candidates?: Array<{
-        tenancy_id?: string;
-        property_id?: string;
-        tenant_name?: string;
-        unit_code?: string;
-        name?: string;
-      }>;
-    };
-  };
-}
-
-const EXAMPLE_UTTERANCES = [
-  "Flat 3B er Rahim bhai 8000 taka bKash korse",
-  "এই মাসে কত ভাড়া বাকি আছে?",
-  "পানির পাম্প মেরামতে ১৫০০ টাকা খরচ হয়েছে",
-  "Flat 3B er Rahim bhai ke rent reminder pathao"
-];
-
-export function VoiceCopilotView({ accessToken, locale }: { accessToken: string; locale: Locale }) {
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
-  const [transcript, setTranscript] = useState("");
-  const [result, setResult] = useState<VoiceActionResult | null>(null);
-  const [selectedTenancyId, setSelectedTenancyId] = useState<string>("");
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
-  const [editedSms, setEditedSms] = useState<string>("");
-  const [execBanner, setExecBanner] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-
-  async function startRecording() {
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
-
-      recorder.ondataavailable = (ev) => {
-        if (ev.data.size > 0) chunksRef.current.push(ev.data);
-      };
-
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((tr) => tr.stop());
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        await uploadAudioForTranscription(blob);
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-      setRecording(true);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? `Microphone error: ${err.message}. You can type directly below.`
-          : "Microphone access denied. Use text fallback below."
-      );
-    }
-  }
-
-  function stopRecording() {
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  }
-
-  async function uploadAudioForTranscription(blob: Blob) {
-    setTranscribing(true);
-    setError(null);
-    try {
-      const form = new FormData();
-      form.append("audio", blob, "command.webm");
-      const res = await apiFetch<{ session_id: string; transcript: string; provider: string }>(
-        "/api/voice/transcribe",
-        accessToken,
-        { method: "POST", body: form }
-      );
-      setSessionId(res.session_id);
-      setTranscript(res.transcript);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Transcription failed");
-    } finally {
-      setTranscribing(false);
-    }
-  }
-
-  async function handleAnalyze(e: React.FormEvent) {
-    e.preventDefault();
-    if (!transcript.trim()) return;
-    setAnalyzing(true);
-    setError(null);
-    setExecBanner(null);
-    setResult(null);
-    setSelectedTenancyId("");
-    setSelectedPropertyId("");
-
-    try {
-      const res = await apiFetch<VoiceActionResult>("/api/voice/interpret", accessToken, {
-        method: "POST",
-        body: JSON.stringify({ transcript: transcript.trim(), session_id: sessionId })
-      });
-      setResult(res);
-      if (res.resolved_entities?.sms_preview) {
-        setEditedSms(res.resolved_entities.sms_preview);
-      }
-    } catch (err) {
-      setError(toFriendlyError(err, locale));
-    } finally {
-      setAnalyzing(false);
-    }
-  }
-
-  async function handleConfirm() {
-    if (!result?.action_id) return;
-    setConfirming(true);
-    setError(null);
-    try {
-      const res = await apiFetch<{ status: string; provider?: { statusCode: string; requestId: string | null } }>(
-        `/api/voice/actions/${result.action_id}/confirm`,
-        accessToken,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            idempotency_key: generateIdempotencyKey("voice"),
-            selected_tenancy_id: selectedTenancyId || undefined,
-            selected_property_id: selectedPropertyId || undefined,
-            edited_message: editedSms || undefined
-          })
-        }
-      );
-      const extra = res.provider
-        ? ` (AppLink ${res.provider.statusCode}${res.provider.requestId ? ` • ${res.provider.requestId}` : ""})`
-        : "";
-      setExecBanner(`Action confirmed & executed safely${extra}.`);
-      setResult(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Confirmation failed");
-    } finally {
-      setConfirming(false);
-    }
-  }
-
-  async function handleReject() {
-    if (result?.action_id) {
-      await apiFetch(`/api/voice/actions/${result.action_id}/reject`, accessToken, {
-        method: "POST"
-      }).catch(() => {});
-    }
-    setResult(null);
-  }
+export function VoiceCopilotView({
+  accessToken,
+  locale,
+  onToast
+}: {
+  accessToken: string;
+  locale: Locale;
+  onToast?: (msg: string) => void;
+}) {
+  const examples =
+    locale === "bn"
+      ? [
+          {
+            icon: <Wallet className="h-4 w-4 text-emerald-600" />,
+            title: "ভাড়া জমা করা",
+            say: "“ফ্ল্যাট 3B এর রহিম ভাই ৮০০০ টাকা বিকাশ করেছে”"
+          },
+          {
+            icon: <HelpCircle className="h-4 w-4 text-amber-600" />,
+            title: "বকেয়া বা আয় জানা",
+            say: "“এই মাসে কত ভাড়া বাকি আছে?”"
+          },
+          {
+            icon: <Receipt className="h-4 w-4 text-rose-600" />,
+            title: "বাড়ির খরচ লেখা",
+            say: "“পানির পাম্প মেরামতে ১৫০০ টাকা খরচ হয়েছে”"
+          },
+          {
+            icon: <Wrench className="h-4 w-4 text-blue-600" />,
+            title: "মেরামতের অনুরোধ",
+            say: "“ফ্ল্যাট 3B এর রান্নাঘরের কল নষ্ট, জরুরি মেরামত লাগবে”"
+          },
+          {
+            icon: <Send className="h-4 w-4 text-teal-600" />,
+            title: "তাগাদা SMS তৈরি",
+            say: "“ফ্ল্যাট 3B এর রহিম ভাইকে ভাড়ার রিমাইন্ডার পাঠাও”"
+          }
+        ]
+      : [
+          {
+            icon: <Wallet className="h-4 w-4 text-emerald-600" />,
+            title: "Record Rent Payment",
+            say: "“Flat 3B Rahim paid 8000 taka via bKash”"
+          },
+          {
+            icon: <HelpCircle className="h-4 w-4 text-amber-600" />,
+            title: "Check Dues & Totals",
+            say: "“How much rent is outstanding this month?”"
+          },
+          {
+            icon: <Receipt className="h-4 w-4 text-rose-600" />,
+            title: "Log Property Expense",
+            say: "“Spent 1500 taka on water pump repair”"
+          },
+          {
+            icon: <Wrench className="h-4 w-4 text-blue-600" />,
+            title: "Log Maintenance Issue",
+            say: "“Flat 3B kitchen tap is leaking, urgent repair”"
+          },
+          {
+            icon: <Send className="h-4 w-4 text-teal-600" />,
+            title: "Prepare Rent Reminder",
+            say: "“Send rent reminder SMS to Flat 3B Rahim”"
+          }
+        ];
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-xs sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-              <Sparkles className="h-5 w-5 text-emerald-600" />
-              {t(locale, "voicePromptTitle")}
-            </h3>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Google Gemini Native Bangla ASR → Editable Transcript → Gemini Structured JSON + Zod →
-              Deterministic Confirmation Gate
-            </p>
-          </div>
+    <div className="space-y-5">
+      <HeroVoiceLauncher accessToken={accessToken} locale={locale} onToast={onToast} />
 
-          <button
-            type="button"
-            onClick={recording ? stopRecording : startRecording}
-            disabled={transcribing}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-xs transition ${
-              recording
-                ? "animate-pulse bg-rose-600 hover:bg-rose-700"
-                : "bg-emerald-600 hover:bg-emerald-700"
-            }`}
-          >
-            {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            {transcribing
-              ? "Transcribing Bangla..."
-              : recording
-                ? t(locale, "stopRecording")
-                : t(locale, "startRecording")}
-          </button>
+      <section className="animate-fade-up rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+        <h3 className="text-sm font-bold text-slate-900">
+          {locale === "bn" ? "কীভাবে কথা বলবেন? (নমুনা)" : "What You Can Say (Examples)"}
+        </h3>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {locale === "bn"
+            ? "স্বাভাবিক বাংলায় বা বাংলিশে বলুন — প্রতিবার সেভ করার আগে আপনাকে যাচাই করার সুযোগ দেওয়া হবে।"
+            : "Speak naturally in Bangla or English — you always review and confirm before anything is saved."}
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {examples.map((ex) => (
+            <div
+              key={ex.title}
+              className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 transition hover:border-emerald-200 hover:bg-emerald-50/30"
+            >
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white shadow-2xs">
+                  {ex.icon}
+                </span>
+                {ex.title}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-slate-600">{ex.say}</p>
+            </div>
+          ))}
         </div>
-
-        <form onSubmit={handleAnalyze} className="mt-4 space-y-3">
-          <textarea
-            rows={3}
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            placeholder={
-              locale === "bn"
-                ? "যেমন: ফ্ল্যাট ৩বি এর রহিম ভাই ৮০০০ টাকা বিকাশ করেছে..."
-                : "e.g. Flat 3B er Rahim bhai 8000 taka bKash korse..."
-            }
-            className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-emerald-500 focus:outline-none"
-          />
-
-          <div className="flex flex-wrap gap-1.5">
-            {EXAMPLE_UTTERANCES.map((sample) => (
-              <button
-                key={sample}
-                type="button"
-                onClick={() => setTranscript(sample)}
-                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
-              >
-                {sample}
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="submit"
-            disabled={analyzing || !transcript.trim()}
-            className="rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            {analyzing ? "Analyzing..." : t(locale, "analyzeCommand")}
-          </button>
-        </form>
-
-        {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-            {error}
-          </div>
-        )}
-        {execBanner && (
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs font-semibold text-emerald-900">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {execBanner}
-          </div>
-        )}
       </section>
-
-      {result && (result.status === "answered" || result.status === "unknown") && (
-        <VoiceAnswerCard
-          intent={result.intent}
-          data={result.data}
-          reason={result.reason}
-          locale={locale}
-          onClose={() => setResult(null)}
-        />
-      )}
-
-      {result && (result.status === "proposed" || result.status === "needs_clarification") && (
-        <VoiceConfirmationCard
-          result={result}
-          locale={locale}
-          selectedTenancyId={selectedTenancyId}
-          selectedPropertyId={selectedPropertyId}
-          editedSms={editedSms}
-          confirming={confirming}
-          onSelectTenancy={setSelectedTenancyId}
-          onSelectProperty={setSelectedPropertyId}
-          onChangeSms={setEditedSms}
-          onConfirm={() => void handleConfirm()}
-          onReject={() => void handleReject()}
-        />
-      )}
     </div>
   );
 }

@@ -9,8 +9,13 @@ describe("Bangla / English i18n dictionary", () => {
     expect(bnKeys).toEqual(enKeys);
   });
 
+  it("contains zero hackathon or demo branding in production UI copy", () => {
+    const allCopy = [...Object.values(MESSAGES.bn), ...Object.values(MESSAGES.en)].join(" ");
+    expect(allCopy).not.toMatch(/appquest|the nerds|demo/i);
+  });
+
   it("returns localized strings cleanly", () => {
-    expect(t("bn", "brand")).toBe("RentReady AI");
+    expect(t("bn", "brand")).toBe("RentReady");
     expect(t("bn", "switchLang")).toBe("English");
     expect(t("en", "switchLang")).toBe("বাংলা");
   });
