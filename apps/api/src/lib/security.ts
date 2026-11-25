@@ -363,6 +363,25 @@ export function mapSafeDbError(
   if (code === "PGRST116") {
     return { status: 404, message: "Requested record was not found." };
   }
+  if (code === "PGRST201") {
+    return { status: 500, message: "Database schema relationship conflict. Please apply Migration 005." };
+  }
 
   return { status: 500, message: "Unable to complete the request right now. Please try again." };
+}
+
+/**
+ * Runs a PostgREST query using clean unqualified embeds first; if the database currently has
+ * Migration 004 applied without Migration 005 (causing PostgREST PGRST201 ambiguous relationship),
+ * transparently retries with explicit Migration 004 composite FK hints so production stays up with zero downtime.
+ */
+export async function runWithPgrst201Fallback<T extends { error: { code?: string } | null }>(
+  primary: () => PromiseLike<T>,
+  fallbackWithFkHints: () => PromiseLike<T>
+): Promise<T> {
+  const res = await primary();
+  if (res.error?.code === "PGRST201") {
+    return await fallbackWithFkHints();
+  }
+  return res;
 }

@@ -4,6 +4,7 @@ import { signRelayPayloadWebCrypto } from "../lib/hmac.js";
 import {
   escapeIlikePattern,
   mapSafeDbError,
+  runWithPgrst201Fallback,
   sanitizeLogValue,
   validateAudioUpload
 } from "../lib/security.js";
@@ -234,5 +235,28 @@ describe("Safe DB Error Mapping, ILIKE Escaping & Log Injection Prevention", () 
     );
     expect(dup.status).toBe(409);
     expect(dup.message).toContain("active tenant");
+  });
+
+  it("retries PostgREST PGRST201 ambiguous relationship errors via explicit FK fallback", async () => {
+    type QueryRes = { data: Array<{ id: string }> | null; error: { code?: string; message?: string } | null };
+    const fallbackFn = vi.fn(async (): Promise<QueryRes> => ({ data: [{ id: "1" }], error: null }));
+    const res = await runWithPgrst201Fallback<QueryRes>(
+      async () => ({
+        data: null,
+        error: { code: "PGRST201", message: "Could not embed because more than one relationship was found" }
+      }),
+      fallbackFn
+    );
+    expect(fallbackFn).toHaveBeenCalledTimes(1);
+    expect(res.error).toBeNull();
+    expect(res.data).toEqual([{ id: "1" }]);
+
+    const unusedFallback = vi.fn(async (): Promise<QueryRes> => ({ data: [], error: null }));
+    const okRes = await runWithPgrst201Fallback<QueryRes>(
+      async () => ({ data: [{ id: "2" }], error: null }),
+      unusedFallback
+    );
+    expect(unusedFallback).not.toHaveBeenCalled();
+    expect(okRes.data).toEqual([{ id: "2" }]);
   });
 });

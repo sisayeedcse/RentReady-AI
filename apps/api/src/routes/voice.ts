@@ -13,6 +13,7 @@ import {
   escapeIlikePattern,
   logSecurityEvent,
   mapSafeDbError,
+  runWithPgrst201Fallback,
   validateAudioUpload
 } from "../lib/security.js";
 import {
@@ -217,12 +218,31 @@ export function createVoiceRoutes(
 
     // Fetch landlord's active tenancies and properties for deterministic resolution
     const [tenanciesRes, propertiesRes] = await Promise.all([
-      supabase
-        .from("tenancies")
-        .select("id, tenant_id, unit_id, monthly_rent_paisa, tenants(full_name, phone_e164), units(unit_code, property_id, properties(name))")
-        .eq("status", "active"),
+      runWithPgrst201Fallback(
+        () =>
+          supabase
+            .from("tenancies")
+            .select("id, tenant_id, unit_id, monthly_rent_paisa, tenants(full_name, phone_e164), units(unit_code, property_id, properties(name))")
+            .eq("status", "active"),
+        () =>
+          supabase
+            .from("tenancies")
+            .select(
+              "id, tenant_id, unit_id, monthly_rent_paisa, tenants!fk_tenancies_tenant_landlord(full_name, phone_e164), units!fk_tenancies_unit_landlord(unit_code, property_id, properties!fk_units_property_landlord(name))"
+            )
+            .eq("status", "active")
+      ),
       supabase.from("properties").select("id, name").eq("is_archived", false)
     ]);
+
+    if (tenanciesRes.error) {
+      const mapped = mapSafeDbError(tenanciesRes.error, "voice_list_tenancies", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
+    if (propertiesRes.error) {
+      const mapped = mapSafeDbError(propertiesRes.error, "voice_list_properties", c.var.requestId);
+      return c.json({ error: mapped.message }, mapped.status);
+    }
 
     const tenancies: TenancyCandidate[] = (tenanciesRes.data ?? []).map((row) => {
       const t = row.tenants as unknown as { full_name: string; phone_e164: string } | null;
@@ -624,11 +644,20 @@ export function createVoiceRoutes(
         return c.json({ error: "SMS message body is empty or too short" }, 400);
       }
 
-      const { data: existingNotif } = await supabase
-        .from("notifications")
-        .select("*, notification_logs(*)")
-        .eq("idempotency_key", body.data.idempotency_key)
-        .maybeSingle();
+      const { data: existingNotif } = await runWithPgrst201Fallback(
+        () =>
+          supabase
+            .from("notifications")
+            .select("*, notification_logs(*)")
+            .eq("idempotency_key", body.data.idempotency_key)
+            .maybeSingle(),
+        () =>
+          supabase
+            .from("notifications")
+            .select("*, notification_logs!fk_notification_logs_notification_landlord(*)")
+            .eq("idempotency_key", body.data.idempotency_key)
+            .maybeSingle()
+      );
       if (existingNotif) {
         await supabase
           .from("voice_actions")

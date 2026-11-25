@@ -8,6 +8,7 @@ const schemaSql = readFileSync(resolve(MIGRATIONS_DIR, "20261122000001_initial_s
 const viewsSql = readFileSync(resolve(MIGRATIONS_DIR, "20261122000002_views_and_rpcs.sql"), "utf8");
 const rlsSql = readFileSync(resolve(MIGRATIONS_DIR, "20261122000003_rls_policies.sql"), "utf8");
 const hardeningSql = readFileSync(resolve(MIGRATIONS_DIR, "20261124000004_security_hardening.sql"), "utf8");
+const dedupFkSql = readFileSync(resolve(MIGRATIONS_DIR, "20261125000005_drop_duplicate_single_fks.sql"), "utf8");
 
 describe("SQL Migration Safety & Financial Invariants", () => {
   it("never uses floating point types (FLOAT, REAL, DOUBLE PRECISION) anywhere in schema", () => {
@@ -52,5 +53,13 @@ describe("SQL Migration Safety & Financial Invariants", () => {
     expect(hardeningSql).toContain("trg_notifications_immutability");
     expect(hardeningSql).toContain("SET search_path = public");
     expect(hardeningSql).toContain("FOR UPDATE");
+  });
+
+  it("drops all 21 redundant single-column FKs from migration 001 in migration 005 to prevent PostgREST PGRST201 ambiguity", () => {
+    const compositeFkCount = [...hardeningSql.matchAll(/FOREIGN KEY \([^,]+,\s*landlord_id\)/g)].length;
+    const droppedFkCount = [...dedupFkSql.matchAll(/DROP CONSTRAINT IF EXISTS [a-z_]+_fkey/g)].length;
+    expect(compositeFkCount).toBe(21);
+    expect(droppedFkCount).toBe(compositeFkCount);
+    expect(dedupFkSql).toContain("NOTIFY pgrst, 'reload schema';");
   });
 });

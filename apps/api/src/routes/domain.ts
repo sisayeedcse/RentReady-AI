@@ -19,7 +19,8 @@ import type { EnvBindings } from "../app.js";
 import {
   createRateLimiter,
   logSecurityEvent,
-  mapSafeDbError
+  mapSafeDbError,
+  runWithPgrst201Fallback
 } from "../lib/security.js";
 import {
   type AuthVariables,
@@ -57,11 +58,22 @@ export function createDomainRoutes(
         .gt("outstanding_paisa", 0)
         .order("due_date", { ascending: true })
         .limit(10),
-      supabase
-        .from("payments")
-        .select("id, amount_paisa, payment_method, paid_at, is_reversal, notes, tenant_id, tenants(full_name)")
-        .order("paid_at", { ascending: false })
-        .limit(10),
+      runWithPgrst201Fallback(
+        () =>
+          supabase
+            .from("payments")
+            .select("id, amount_paisa, payment_method, paid_at, is_reversal, notes, tenant_id, tenants(full_name)")
+            .order("paid_at", { ascending: false })
+            .limit(10),
+        () =>
+          supabase
+            .from("payments")
+            .select(
+              "id, amount_paisa, payment_method, paid_at, is_reversal, notes, tenant_id, tenants!fk_payments_tenant_landlord(full_name)"
+            )
+            .order("paid_at", { ascending: false })
+            .limit(10)
+      ),
       supabase
         .from("maintenance_requests")
         .select("id, title, priority, status, created_at, units(unit_code)")
@@ -85,11 +97,20 @@ export function createDomainRoutes(
 
   // 2. Properties
   r.get("/properties", async (c) => {
-    const { data, error } = await c.var.supabase
-      .from("properties")
-      .select("*, buildings(id, name)")
-      .eq("is_archived", false)
-      .order("created_at", { ascending: false });
+    const { data, error } = await runWithPgrst201Fallback(
+      () =>
+        c.var.supabase
+          .from("properties")
+          .select("*, buildings(id, name)")
+          .eq("is_archived", false)
+          .order("created_at", { ascending: false }),
+      () =>
+        c.var.supabase
+          .from("properties")
+          .select("*, buildings!fk_buildings_property_landlord(id, name)")
+          .eq("is_archived", false)
+          .order("created_at", { ascending: false })
+    );
     if (error) {
       const mapped = mapSafeDbError(error, "list_properties", c.var.requestId);
       return c.json({ error: mapped.message }, mapped.status);
@@ -131,13 +152,24 @@ export function createDomainRoutes(
       return c.json({ error: "Invalid property_id query parameter" }, 400);
     }
 
-    let query = c.var.supabase
-      .from("units")
-      .select("*, properties(name)")
-      .order("unit_code", { ascending: true });
-    if (propertyId) query = query.eq("property_id", propertyId);
-
-    const { data, error } = await query;
+    const { data, error } = await runWithPgrst201Fallback(
+      () => {
+        let query = c.var.supabase
+          .from("units")
+          .select("*, properties(name)")
+          .order("unit_code", { ascending: true });
+        if (propertyId) query = query.eq("property_id", propertyId);
+        return query;
+      },
+      () => {
+        let query = c.var.supabase
+          .from("units")
+          .select("*, properties!fk_units_property_landlord(name)")
+          .order("unit_code", { ascending: true });
+        if (propertyId) query = query.eq("property_id", propertyId);
+        return query;
+      }
+    );
     if (error) {
       const mapped = mapSafeDbError(error, "list_units", c.var.requestId);
       return c.json({ error: mapped.message }, mapped.status);
@@ -255,10 +287,20 @@ export function createDomainRoutes(
 
   // 5. Tenancies
   r.get("/tenancies", async (c) => {
-    const { data, error } = await c.var.supabase
-      .from("tenancies")
-      .select("*, tenants(full_name, phone_e164), units(unit_code, property_id, properties(name))")
-      .order("created_at", { ascending: false });
+    const { data, error } = await runWithPgrst201Fallback(
+      () =>
+        c.var.supabase
+          .from("tenancies")
+          .select("*, tenants(full_name, phone_e164), units(unit_code, property_id, properties(name))")
+          .order("created_at", { ascending: false }),
+      () =>
+        c.var.supabase
+          .from("tenancies")
+          .select(
+            "*, tenants!fk_tenancies_tenant_landlord(full_name, phone_e164), units!fk_tenancies_unit_landlord(unit_code, property_id, properties!fk_units_property_landlord(name))"
+          )
+          .order("created_at", { ascending: false })
+    );
     if (error) {
       const mapped = mapSafeDbError(error, "list_tenancies", c.var.requestId);
       return c.json({ error: mapped.message }, mapped.status);
@@ -332,11 +374,22 @@ export function createDomainRoutes(
 
   // 7. Payments & Immutable Reversals
   r.get("/payments", async (c) => {
-    const { data, error } = await c.var.supabase
-      .from("payments")
-      .select("*, tenants(full_name, phone_e164), tenancies(units(unit_code))")
-      .order("paid_at", { ascending: false })
-      .limit(100);
+    const { data, error } = await runWithPgrst201Fallback(
+      () =>
+        c.var.supabase
+          .from("payments")
+          .select("*, tenants(full_name, phone_e164), tenancies(units(unit_code))")
+          .order("paid_at", { ascending: false })
+          .limit(100),
+      () =>
+        c.var.supabase
+          .from("payments")
+          .select(
+            "*, tenants!fk_payments_tenant_landlord(full_name, phone_e164), tenancies!fk_payments_tenancy_landlord(units!fk_tenancies_unit_landlord(unit_code))"
+          )
+          .order("paid_at", { ascending: false })
+          .limit(100)
+    );
     if (error) {
       const mapped = mapSafeDbError(error, "list_payments", c.var.requestId);
       return c.json({ error: mapped.message }, mapped.status);
@@ -392,11 +445,20 @@ export function createDomainRoutes(
 
   // 8. Expenses
   r.get("/expenses", async (c) => {
-    const { data, error } = await c.var.supabase
-      .from("expenses")
-      .select("*, properties(name), units(unit_code)")
-      .eq("is_void", false)
-      .order("incurred_on", { ascending: false });
+    const { data, error } = await runWithPgrst201Fallback(
+      () =>
+        c.var.supabase
+          .from("expenses")
+          .select("*, properties(name), units(unit_code)")
+          .eq("is_void", false)
+          .order("incurred_on", { ascending: false }),
+      () =>
+        c.var.supabase
+          .from("expenses")
+          .select("*, properties!fk_expenses_property_landlord(name), units(unit_code)")
+          .eq("is_void", false)
+          .order("incurred_on", { ascending: false })
+    );
     if (error) {
       const mapped = mapSafeDbError(error, "list_expenses", c.var.requestId);
       return c.json({ error: mapped.message }, mapped.status);
@@ -460,10 +522,18 @@ export function createDomainRoutes(
 
   // 9. Maintenance Requests
   r.get("/maintenance", async (c) => {
-    const { data, error } = await c.var.supabase
-      .from("maintenance_requests")
-      .select("*, properties(name), units(unit_code), tenants(full_name)")
-      .order("created_at", { ascending: false });
+    const { data, error } = await runWithPgrst201Fallback(
+      () =>
+        c.var.supabase
+          .from("maintenance_requests")
+          .select("*, properties(name), units(unit_code), tenants(full_name)")
+          .order("created_at", { ascending: false }),
+      () =>
+        c.var.supabase
+          .from("maintenance_requests")
+          .select("*, properties!fk_maintenance_property_landlord(name), units(unit_code), tenants(full_name)")
+          .order("created_at", { ascending: false })
+    );
     if (error) {
       const mapped = mapSafeDbError(error, "list_maintenance", c.var.requestId);
       return c.json({ error: mapped.message }, mapped.status);
@@ -527,11 +597,22 @@ export function createDomainRoutes(
 
   // 10. Confirmed Banglalink AppLink SMS Dispatch & Notification Logs
   r.get("/notifications", async (c) => {
-    const { data, error } = await c.var.supabase
-      .from("notifications")
-      .select("*, tenants(full_name), notification_logs(*)")
-      .order("created_at", { ascending: false })
-      .limit(50);
+    const { data, error } = await runWithPgrst201Fallback(
+      () =>
+        c.var.supabase
+          .from("notifications")
+          .select("*, tenants(full_name), notification_logs(*)")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      () =>
+        c.var.supabase
+          .from("notifications")
+          .select(
+            "*, tenants!fk_notifications_tenant_landlord(full_name), notification_logs!fk_notification_logs_notification_landlord(*)"
+          )
+          .order("created_at", { ascending: false })
+          .limit(50)
+    );
     if (error) {
       const mapped = mapSafeDbError(error, "list_notifications", c.var.requestId);
       return c.json({ error: mapped.message }, mapped.status);
@@ -555,11 +636,20 @@ export function createDomainRoutes(
     }
 
     const supabase = c.var.supabase;
-    const { data: existing } = await supabase
-      .from("notifications")
-      .select("*, notification_logs(*)")
-      .eq("idempotency_key", parsed.data.idempotency_key)
-      .maybeSingle();
+    const { data: existing } = await runWithPgrst201Fallback(
+      () =>
+        supabase
+          .from("notifications")
+          .select("*, notification_logs(*)")
+          .eq("idempotency_key", parsed.data.idempotency_key)
+          .maybeSingle(),
+      () =>
+        supabase
+          .from("notifications")
+          .select("*, notification_logs!fk_notification_logs_notification_landlord(*)")
+          .eq("idempotency_key", parsed.data.idempotency_key)
+          .maybeSingle()
+    );
     if (existing) {
       return c.json({ data: existing, idempotent_replay: true }, 200);
     }
@@ -587,11 +677,20 @@ export function createDomainRoutes(
       .single();
     if (nErr) {
       if (nErr.code === "23505") {
-        const { data: replayRow } = await supabase
-          .from("notifications")
-          .select("*, notification_logs(*)")
-          .eq("idempotency_key", parsed.data.idempotency_key)
-          .maybeSingle();
+        const { data: replayRow } = await runWithPgrst201Fallback(
+          () =>
+            supabase
+              .from("notifications")
+              .select("*, notification_logs(*)")
+              .eq("idempotency_key", parsed.data.idempotency_key)
+              .maybeSingle(),
+          () =>
+            supabase
+              .from("notifications")
+              .select("*, notification_logs!fk_notification_logs_notification_landlord(*)")
+              .eq("idempotency_key", parsed.data.idempotency_key)
+              .maybeSingle()
+        );
         if (replayRow) return c.json({ data: replayRow, idempotent_replay: true }, 200);
       }
       const mapped = mapSafeDbError(nErr, "queue_notification", c.var.requestId);

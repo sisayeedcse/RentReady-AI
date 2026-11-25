@@ -79,6 +79,14 @@ export class GeminiAudioAsrProvider implements SpeechToTextProvider {
       const timeout = setTimeout(() => controller.abort(), ASR_TIMEOUT_MS);
 
       try {
+        const generationConfig: Record<string, unknown> = {
+          temperature: 0,
+          maxOutputTokens: 512
+        };
+        if (model.startsWith("gemini-2.5-")) {
+          generationConfig.thinkingConfig = { thinkingBudget: 0 };
+        }
+
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
         const res = await doFetch(url, {
           method: "POST",
@@ -96,26 +104,35 @@ export class GeminiAudioAsrProvider implements SpeechToTextProvider {
                 ]
               }
             ],
-            generationConfig: {
-              temperature: 0,
-              maxOutputTokens: 300
-            }
+            generationConfig
           }),
           signal: controller.signal
         });
 
         if (!res.ok) {
-          lastError = `ASR provider error (HTTP ${res.status})`;
-          if ([404, 429, 500, 502, 503, 504].includes(res.status)) {
+          const errJson = (await res.json().catch(() => null)) as {
+            error?: { status?: string; message?: string };
+          } | null;
+          const errCode = errJson?.error?.status ?? `HTTP_${res.status}`;
+          const errDetail = (errJson?.error?.message ?? "").replace(/AIza[A-Za-z0-9_-]+/g, "[REDACTED]").slice(0, 120);
+          lastError = `ASR provider ${model} failed (${errCode}${errDetail ? `: ${errDetail}` : ""})`;
+          if ([400, 404, 429, 500, 502, 503, 504].includes(res.status)) {
             continue;
           }
           throw new Error(lastError);
         }
 
         const data = (await res.json()) as {
-          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+          candidates?: Array<{
+            content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+          }>;
         };
-        const transcript = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
+        const parts = data.candidates?.[0]?.content?.parts ?? [];
+        const transcript = parts
+          .filter((p) => !p.thought && typeof p.text === "string")
+          .map((p) => p.text ?? "")
+          .join(" ")
+          .trim();
         if (!transcript) {
           throw new Error("ASR returned an empty transcript");
         }

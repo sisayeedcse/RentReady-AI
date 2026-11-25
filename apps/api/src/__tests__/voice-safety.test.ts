@@ -194,6 +194,43 @@ describe("Google Gemini Structured Intent Extractor", () => {
     expect(payload.intent).toBe("get_monthly_collection");
     expect(modelUsed).toBe("gemini:gemini-2.5-flash");
     expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [, secondInit] = (mockFetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1] as [
+      string,
+      RequestInit
+    ];
+    const secondBody = JSON.parse(String(secondInit.body)) as {
+      generationConfig?: { thinkingConfig?: { thinkingBudget?: number }; maxOutputTokens?: number };
+    };
+    expect(secondBody.generationConfig?.thinkingConfig?.thinkingBudget).toBe(0);
+    expect(secondBody.generationConfig?.maxOutputTokens).toBeGreaterThanOrEqual(1024);
+  });
+
+  it("ignores model thought parts and extracts the clean JSON text part", async () => {
+    const mockFetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { thought: true, text: "Let me parse this Bangla utterance..." },
+                    { text: '{"intent":"get_outstanding_rent"}' }
+                  ]
+                }
+              }
+            ]
+          }),
+          { status: 200 }
+        )
+    ) as unknown as typeof fetch;
+
+    const { payload } = await extractVoiceIntent({
+      transcript: "এই মাসে কত ভাড়া বাকি আছে?",
+      apiKey: "test-gemini-key",
+      fetchImpl: mockFetch
+    });
+    expect(payload.intent).toBe("get_outstanding_rent");
   });
 });
 

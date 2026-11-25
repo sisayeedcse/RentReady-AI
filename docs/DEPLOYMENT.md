@@ -10,11 +10,12 @@ This guide covers:
 
 ### 1. Supabase Database Setup
 1. Create a project at `https://supabase.com/dashboard` (Region: Singapore `ap-southeast-1`).
-2. Open **SQL Editor** and run all 4 migrations in exact sequential order:
+2. Open **SQL Editor** and run all 5 migrations in exact sequential order:
    - `supabase/migrations/20261122000001_initial_schema.sql`
    - `supabase/migrations/20261122000002_views_and_rpcs.sql`
    - `supabase/migrations/20261122000003_rls_policies.sql`
    - `supabase/migrations/20261124000004_security_hardening.sql`
+   - `supabase/migrations/20261125000005_drop_duplicate_single_fks.sql`
 3. Under **Authentication → Providers → Email**:
    - Keep **"Confirm email" ENABLED** in production. (You may temporarily disable it only in a dedicated local/staging test project.)
    - Set **Minimum password length** to **8** under **Authentication → Providers → Email / Password Settings**.

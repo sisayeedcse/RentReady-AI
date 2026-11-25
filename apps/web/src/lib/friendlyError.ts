@@ -80,6 +80,39 @@ export function toFriendlyError(err: unknown, locale: Locale): string {
       : "This action has already been completed or cancelled.";
   }
 
+  if (lower.includes("invalid or expired session") || lower.includes("authorization bearer")) {
+    return locale === "bn"
+      ? "আপনার লগইন সেশনের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে আবার সাইন ইন করুন।"
+      : "Your session has expired. Please sign in again.";
+  }
+
+  if (lower.includes("cross-origin request forbidden")) {
+    return locale === "bn"
+      ? "নিরাপত্তা নীতির কারণে অনুরোধটি গ্রহণ করা যায়নি। অনুগ্রহ করে পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।"
+      : "Request was blocked by origin security policy. Please reload the page and try again.";
+  }
+
+  if (
+    lower.includes("could not analyze voice command") ||
+    lower.includes("audio transcription failed")
+  ) {
+    return locale === "bn"
+      ? "এই মুহূর্তে AI কমান্ডটি বিশ্লেষণ করতে পারেনি। অনুগ্রহ করে কয়েক সেকেন্ড পরে আবার চেষ্টা করুন।"
+      : "The AI assistant could not analyze that command right now. Please try again in a few seconds.";
+  }
+
+  if (lower.includes("already exists") || lower.includes("unique details")) {
+    return locale === "bn"
+      ? "এই তথ্যটি ইতিমধ্যেই সংরক্ষিত আছে।"
+      : "A record with these details already exists.";
+  }
+
+  if (lower.includes("invalid bangladesh mobile")) {
+    return locale === "bn"
+      ? "সঠিক বাংলাদেশি মোবাইল নম্বর দিন (যেমন: 019XXXXXXXX)।"
+      : "Please enter a valid Bangladesh mobile number (e.g. 019XXXXXXXX).";
+  }
+
   if (lower.includes("empty transcript") || lower.includes("audio file")) {
     return locale === "bn"
       ? "কোনো কথা শোনা যায়নি। অনুগ্রহ করে মাইক্রোফোনের কাছে পরিষ্কারভাবে আবার বলুন।"

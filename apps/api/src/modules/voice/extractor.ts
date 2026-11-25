@@ -5,7 +5,8 @@ export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 export const PINNED_GEMINI_MODELS = [
   "gemini-3.5-flash-lite",
   "gemini-2.5-flash",
-  "gemini-2.5-flash-lite"
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash"
 ] as const;
 
 const SYSTEM_PROMPT = `You are the structured intent extractor for RentReady AI, a Bangladeshi residential rental management SaaS.
@@ -79,6 +80,15 @@ export async function extractVoiceIntent(params: {
     const timeout = setTimeout(() => controller.abort(), 12_000);
 
     try {
+      const generationConfig: Record<string, unknown> = {
+        temperature: 0,
+        maxOutputTokens: 1024,
+        responseMimeType: "application/json"
+      };
+      if (candidateModel.startsWith("gemini-2.5-")) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
+
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent`;
       const res = await fetchImpl(url, {
         method: "POST",
@@ -96,35 +106,51 @@ export async function extractVoiceIntent(params: {
               parts: [{ text: transcript }]
             }
           ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 400,
-            responseMimeType: "application/json"
-          }
+          generationConfig
         }),
         signal: controller.signal
       });
 
       if (!res.ok) {
         lastStatus = res.status;
-        lastError = `AI provider error (HTTP ${res.status})`;
-        if ([404, 429, 500, 502, 503, 504].includes(res.status)) {
+        const errJson = (await res.json().catch(() => null)) as {
+          error?: { status?: string; message?: string };
+        } | null;
+        const errCode = errJson?.error?.status ?? `HTTP_${res.status}`;
+        const errDetail = (errJson?.error?.message ?? "").replace(/AIza[A-Za-z0-9_-]+/g, "[REDACTED]").slice(0, 120);
+        lastError = `AI provider ${candidateModel} failed (${errCode}${errDetail ? `: ${errDetail}` : ""})`;
+        if ([400, 404, 429, 500, 502, 503, 504].includes(res.status)) {
           continue;
         }
         break;
       }
 
       const data = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        candidates?: Array<{
+          content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+        }>;
       };
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const parts = data.candidates?.[0]?.content?.parts ?? [];
+      const content = parts
+        .filter((p) => !p.thought && typeof p.text === "string")
+        .map((p) => p.text ?? "")
+        .join("\n")
+        .trim();
       if (!content) {
         lastStatus = 502;
-        lastError = "AI provider returned an empty response";
+        lastError = `AI provider ${candidateModel} returned an empty response`;
         continue;
       }
 
-      const parsedJson = extractJsonObject(content);
+      let parsedJson: unknown;
+      try {
+        parsedJson = extractJsonObject(content);
+      } catch {
+        lastStatus = 502;
+        lastError = `AI provider ${candidateModel} returned non-JSON output`;
+        continue;
+      }
+
       const validated = VoiceActionPayloadSchema.safeParse(parsedJson);
       if (!validated.success) {
         return {
@@ -141,8 +167,8 @@ export async function extractVoiceIntent(params: {
       lastStatus = 503;
       lastError =
         err instanceof Error && err.name === "AbortError"
-          ? "AI intent extraction timed out"
-          : "Network error contacting AI provider";
+          ? `AI intent extraction timed out (${candidateModel})`
+          : `Network error contacting AI provider (${candidateModel})`;
     } finally {
       clearTimeout(timeout);
     }

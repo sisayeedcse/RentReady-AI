@@ -30,5 +30,8 @@ describe("Customer-friendly error translator", () => {
     expect(toFriendlyError(new Error("Invalid login credentials"), "bn")).toContain("পাসওয়ার্ড");
     expect(toFriendlyError(new Error("Unsupported audio format"), "en")).toContain("Unsupported");
     expect(toFriendlyError(new Error("Too many requests"), "bn")).toContain("কিছুক্ষণ পর");
+    expect(toFriendlyError(new Error("Invalid or expired session token"), "en")).toContain("session has expired");
+    expect(toFriendlyError(new Error("Cross-origin request forbidden"), "en")).toContain("origin security policy");
+    expect(toFriendlyError(new Error("Could not analyze voice command right now."), "bn")).toContain("বিশ্লেষণ");
   });
 });
