@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: rentready-applink-relay
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./services/applink-relay/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RELAY_HOST
+        value: 0.0.0.0
+      - key: APPLINK_APPLICATION_ID
+        value: APP_019181
+      - key: RELAY_SHARED_SECRET
+        sync: false
+      - key: APPLINK_PASSWORD
+        sync: false
