@@ -40,4 +40,12 @@ describe("Repository Security, Accessibility & Production Hygiene Gates", () => 
     expect(seedScript).toContain("SEED_DEMO_PASSWORD");
     expect(seedScript).toContain("ALLOW_DEMO_SEED");
   });
+
+  it("keeps Modal focus-management effect independent of inline onClose callbacks", () => {
+    const modalSrc = readFileSync(resolve(ROOT, "apps/web/src/components/ui/Modal.tsx"), "utf8");
+    expect(modalSrc).toContain("onCloseRef");
+    expect(modalSrc).not.toMatch(/\[\s*open\s*,\s*onClose\s*\]/);
+    expect(modalSrc).toContain("}, [open]);");
+    expect(modalSrc).toContain("panelRef.current.contains(document.activeElement)");
+  });
 });

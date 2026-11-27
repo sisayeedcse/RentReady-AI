@@ -23,7 +23,13 @@ export function Modal({
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -31,22 +37,31 @@ export function Modal({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    // Shift focus inside dialog for WCAG 2.2 keyboard navigation
+    // Shift focus inside dialog ONCE when opened (never re-run on parent state/onClose re-renders)
     const raf = window.requestAnimationFrame(() => {
-      const focusable = panelRef.current?.querySelector<HTMLElement>(
-        'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      if (!panelRef.current) return;
+      if (panelRef.current.contains(document.activeElement)) return;
+
+      // Prefer the first interactive form field inside the modal body over the header close button
+      const firstFormField = bodyRef.current?.querySelector<HTMLElement>(
+        'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled])'
       );
-      if (focusable) {
-        focusable.focus({ preventScroll: true });
+      const fallbackFocusable = panelRef.current.querySelector<HTMLElement>(
+        'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (firstFormField) {
+        firstFormField.focus({ preventScroll: true });
+      } else if (fallbackFocusable) {
+        fallbackFocusable.focus({ preventScroll: true });
       } else {
-        panelRef.current?.focus({ preventScroll: true });
+        panelRef.current.focus({ preventScroll: true });
       }
     });
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === "Tab" && panelRef.current) {
@@ -73,7 +88,7 @@ export function Modal({
       document.body.style.overflow = prevOverflow;
       previousFocusRef.current?.focus({ preventScroll: true });
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -120,7 +135,7 @@ export function Modal({
         </div>
 
         {/* Scrollable Opaque Body */}
-        <div className="flex-1 overflow-y-auto bg-white px-5 py-4 sm:px-6 sm:py-5">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto bg-white px-5 py-4 sm:px-6 sm:py-5">
           {children}
         </div>
 
